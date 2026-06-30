@@ -2,7 +2,7 @@
 
 Selection order in ``get_adapter``:
   1. explicit ``name`` argument (from ``--host``)
-  2. ``CLASSIFIER_HOST`` environment variable
+  2. ``VIBEGATE_HOST`` environment variable
   3. auto-detection from the payload
   4. default: claude_code
 """
@@ -32,7 +32,7 @@ def available_hosts() -> list[str]:
 
 def get_adapter(name: str | None = None, raw_stdin: str | None = None) -> HostAdapter:
     """Resolve a ``HostAdapter`` from an explicit name, env var, or payload."""
-    chosen = name or os.environ.get("CLASSIFIER_HOST")
+    chosen = name or os.environ.get("VIBEGATE_HOST")
 
     if not chosen and raw_stdin is not None:
         for adapter_cls in _DETECTION_ORDER:

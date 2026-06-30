@@ -1,4 +1,4 @@
-from user_input_classifier.classifier import classify_findings, extract_varname
+from vibegate.classifier import classify_findings, extract_varname
 
 
 def _finding(check_id, line, lines):

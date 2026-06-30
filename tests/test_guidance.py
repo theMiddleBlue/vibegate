@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from user_input_classifier.guidance import SEMANTIC_GUIDANCE, get_guidance
+from vibegate.guidance import SEMANTIC_GUIDANCE, get_guidance
 
 REQUIRED_FIELDS = {
     "validation",

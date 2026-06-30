@@ -1,9 +1,9 @@
 import os
 from pathlib import Path
 
-from user_input_classifier.core import RULES_DIR, analyze, resolve_language
-from user_input_classifier.models import InputEvent
-from user_input_classifier.semgrep_runner import _semgrep_env, resolve_semgrep_cmd
+from vibegate.core import RULES_DIR, analyze, resolve_language
+from vibegate.models import InputEvent
+from vibegate.semgrep_runner import _semgrep_env, resolve_semgrep_cmd
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -12,7 +12,7 @@ def test_resolve_semgrep_env_override(tmp_path, monkeypatch):
     fake = tmp_path / "semgrep"
     fake.write_text("#!/bin/sh\n")
     fake.chmod(0o755)
-    monkeypatch.setenv("CLASSIFIER_SEMGREP", str(fake))
+    monkeypatch.setenv("VIBEGATE_SEMGREP", str(fake))
     resolve_semgrep_cmd.cache_clear()
     try:
         assert resolve_semgrep_cmd() == [str(fake)]

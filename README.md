@@ -38,17 +38,17 @@ pip install semgrep                       # required runtime dependency
 ./install.sh [TARGET_PROJECT_DIR]         # default: current directory
 ```
 
-`install.sh` copies the package into `<target>/.claude/hooks/user_input_classifier/`
+`install.sh` copies the package into `<target>/.claude/hooks/vibegate/`
 and merges a `PreToolUse` hook (`Write|Edit|MultiEdit`) into
 `<target>/.claude/settings.json`. It is idempotent. Reload Claude Code to activate.
 
-Host selection at runtime: `--host <name>` → `CLASSIFIER_HOST` env → payload
+Host selection at runtime: `--host <name>` → `VIBEGATE_HOST` env → payload
 auto-detect → default (`claude_code`).
 
 ## Layout
 
 ```
-src/user_input_classifier/
+src/vibegate/
 ├── hook.py            # entry point
 ├── core.py            # host-agnostic pipeline
 ├── models.py          # InputEvent / ClassifiedFinding / AnalysisResult
@@ -63,7 +63,7 @@ src/user_input_classifier/
 ## Test
 
 ```bash
-semgrep --validate --config src/user_input_classifier/rules/   # validate rules
+semgrep --validate --config src/vibegate/rules/   # validate rules
 pytest tests/                                                   # unit + integration
 ```
 
@@ -71,7 +71,7 @@ End-to-end smoke test:
 
 ```bash
 python3 -c 'import json; print(json.dumps({"tool_name":"Write","tool_input":{"file_path":"/tmp/t.py","new_content":"email = request.json.get(\"email\")"}}))' \
-  | python3 src/user_input_classifier/hook.py --host claude_code
+  | python3 src/vibegate/hook.py --host claude_code
 ```
 
 ## Extend

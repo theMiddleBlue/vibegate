@@ -1,9 +1,9 @@
 import json
 
-from user_input_classifier.adapters import get_adapter
-from user_input_classifier.adapters.claude_code import ClaudeCodeAdapter
-from user_input_classifier.adapters.codex import CodexAdapter
-from user_input_classifier.models import AnalysisResult, ClassifiedFinding
+from vibegate.adapters import get_adapter
+from vibegate.adapters.claude_code import ClaudeCodeAdapter
+from vibegate.adapters.codex import CodexAdapter
+from vibegate.models import AnalysisResult, ClassifiedFinding
 
 
 # --- Claude Code adapter ---

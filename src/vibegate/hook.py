@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for the User Input Security Classifier hook.
+"""Entry point for the VibeGate security hook.
 
 Thin orchestrator: read stdin -> pick host adapter -> normalize -> analyze ->
 emit. Fail-safe by design: any internal error exits 0 so a hook bug never blocks
@@ -8,7 +8,7 @@ the host tool.
 Usage:
     python3 hook.py [--host claude_code|codex]
 
-Host selection: --host arg > CLASSIFIER_HOST env > payload auto-detect > default.
+Host selection: --host arg > VIBEGATE_HOST env > payload auto-detect > default.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from pathlib import Path
 # Support running both as a script (`python3 hook.py`) and as a package module.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from user_input_classifier.adapters import get_adapter
-    from user_input_classifier.core import analyze
+    from vibegate.adapters import get_adapter
+    from vibegate.core import analyze
 else:
     from .adapters import get_adapter
     from .core import analyze

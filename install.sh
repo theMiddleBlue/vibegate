@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install the User Input Security Classifier hook into a target project's
+# Install the VibeGate hook into a target project's
 # project-local .claude/ directory.
 #
 # Usage: ./install.sh [TARGET_PROJECT_DIR]   (default: current directory)
@@ -8,16 +8,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_PKG="$SCRIPT_DIR/src/user_input_classifier"
+SRC_PKG="$SCRIPT_DIR/src/vibegate"
 
 TARGET="${1:-$(pwd)}"
 TARGET="$(cd "$TARGET" && pwd)"
 
-HOOKS_DEST="$TARGET/.claude/hooks/user_input_classifier"
+HOOKS_DEST="$TARGET/.claude/hooks/vibegate"
 SETTINGS="$TARGET/.claude/settings.json"
 
 # Importable package name (underscore) so hook.py's imports resolve.
-HOOK_CMD='python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/user_input_classifier/hook.py" --host claude_code'
+HOOK_CMD='python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/vibegate/hook.py" --host claude_code'
 
 echo "==> Installing into: $TARGET"
 
@@ -72,7 +72,7 @@ entry = {
 # Idempotent: replace any existing entry that runs this hook.
 def is_ours(e):
     return any(
-        "user_input_classifier/hook.py" in (h.get("command", ""))
+        "vibegate/hook.py" in (h.get("command", ""))
         for h in e.get("hooks", [])
     )
 

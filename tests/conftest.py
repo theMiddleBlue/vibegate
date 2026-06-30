@@ -1,4 +1,4 @@
-"""Make the ``user_input_classifier`` package importable from tests."""
+"""Make the ``vibegate`` package importable from tests."""
 
 import sys
 from pathlib import Path

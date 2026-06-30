@@ -35,7 +35,7 @@ def resolve_semgrep_cmd() -> list[str] | None:
     """Locate Semgrep without relying on the caller's PATH.
 
     Resolution order (first hit wins):
-      1. ``CLASSIFIER_SEMGREP`` env var (explicit override).
+      1. ``VIBEGATE_SEMGREP`` env var (explicit override).
       2. ``semgrep`` on PATH.
       3. Known per-user / Homebrew bin locations.
       4. ``python -m semgrep`` when the package is importable (last resort: it
@@ -46,7 +46,7 @@ def resolve_semgrep_cmd() -> list[str] | None:
     knowing the binary's directory lets ``run_semgrep`` put it on PATH.
     Returns the command prefix as a list, or ``None`` if Semgrep cannot be found.
     """
-    override = os.environ.get("CLASSIFIER_SEMGREP")
+    override = os.environ.get("VIBEGATE_SEMGREP")
     if override and Path(override).exists():
         return [override]
 

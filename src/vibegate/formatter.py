@@ -42,7 +42,7 @@ def format_output(
     context_parts: list[str] = []
     block_reason = ""
 
-    lines.append(f"\n{BOLD}{CYAN}╔══ USER INPUT SECURITY CLASSIFIER ══╗{RESET}")
+    lines.append(f"\n{BOLD}{CYAN}╔══════ VibeGate · pre-write security ══════╗{RESET}")
     lines.append(f"{GRAY}  File: {file_path} ({language}){RESET}")
     lines.append(f"{BOLD}{CYAN}╚{'═' * 38}╝{RESET}\n")
 

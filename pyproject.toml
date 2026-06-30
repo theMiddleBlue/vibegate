@@ -1,5 +1,5 @@
 [project]
-name = "user-input-classifier"
+name = "vibegate"
 version = "1.0.0"
 description = "Host-agnostic pre-write security hook: detects user-input patterns via Semgrep and emits deterministic, no-LLM security guidance."
 requires-python = ">=3.11"
