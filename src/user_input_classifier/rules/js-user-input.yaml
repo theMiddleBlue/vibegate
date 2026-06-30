@@ -1,0 +1,191 @@
+rules:
+  # --- CLI ---
+  - id: js-cli-argv
+    pattern: process.argv[...]
+    message: CLI_ARG
+    languages: [javascript, typescript]
+    severity: INFO
+
+  - id: js-cli-commander
+    pattern-either:
+      - pattern: program.parse(...)
+      - pattern: $P.opts()
+    message: CLI_ARG
+    languages: [javascript, typescript]
+    severity: INFO
+
+  # --- STDIN ---
+  - id: js-stdin-readline
+    pattern-either:
+      - pattern: readline.createInterface(...)
+      - pattern: $RL.question(...)
+      - pattern: process.stdin.on(...)
+    message: STDIN
+    languages: [javascript, typescript]
+    severity: INFO
+
+  # --- HTTP Body ---
+  - id: js-http-body-express
+    pattern-either:
+      - pattern: req.body
+      - pattern: req.body.$X
+      - pattern: request.body
+    message: HTTP_BODY
+    languages: [javascript, typescript]
+    severity: INFO
+
+  - id: js-http-body-next
+    pattern-either:
+      - pattern: await req.json()
+      - pattern: await request.json()
+      - pattern: await req.formData()
+    message: HTTP_BODY
+    languages: [javascript, typescript]
+    severity: INFO
+
+  # --- HTTP Query / Headers ---
+  - id: js-http-query
+    pattern-either:
+      - pattern: req.query.$X
+      - pattern: req.params.$X
+      - pattern: $SP.searchParams.get(...)
+      - pattern: new URL(...).searchParams
+    message: HTTP_QUERY
+    languages: [javascript, typescript]
+    severity: INFO
+
+  - id: js-http-header
+    pattern-either:
+      - pattern: req.headers[...]
+      - pattern: req.headers.$X
+      - pattern: request.headers.get(...)
+    message: HTTP_HEADER
+    languages: [javascript, typescript]
+    severity: INFO
+
+  # --- ENV VAR ---
+  - id: js-env-var
+    pattern: process.env.$X
+    message: ENV_VAR
+    languages: [javascript, typescript]
+    severity: INFO
+
+  # --- EXEC INPUT (high criticality) ---
+  # Taint mode: block only when user input reaches a shell-executing sink.
+  # exec/execSync run via a shell, so a tainted command arg is injection; the
+  # safe form (execFile/spawn with an args array) is not matched. A constant
+  # command clears the finding.
+  - id: js-exec-input
+    mode: taint
+    pattern-sources:
+      - pattern: process.argv
+      - pattern: process.stdin
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.headers
+      - pattern: request.headers
+      - pattern: req.cookies
+      - pattern: process.env
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec($X, ...)
+              - pattern: execSync($X, ...)
+              - pattern: eval($X)
+              - pattern: new Function($X)
+          - focus-metavariable: $X
+    message: EXEC_INPUT
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- SSRF (server-side request to a non-constant URL) ---
+  # Presence-based, NOT taint (see python-ssrf): flag any outbound fetch whose
+  # URL argument is not a string literal. fetch/axios/got/http(s) are the sinks;
+  # a hard-coded URL is excluded so safe constant calls do not fire.
+  - id: js-ssrf
+    patterns:
+      - pattern-either:
+          # fetch (global / node-fetch / undici)
+          - pattern: fetch($URL, ...)
+          # axios
+          - pattern: axios($URL, ...)
+          - pattern: axios.get($URL, ...)
+          - pattern: axios.post($URL, ...)
+          - pattern: axios.put($URL, ...)
+          - pattern: axios.delete($URL, ...)
+          - pattern: axios.patch($URL, ...)
+          - pattern: axios.head($URL, ...)
+          - pattern: "axios.request({url: $URL, ...}, ...)"
+          - pattern: "axios({url: $URL, ...}, ...)"
+          # got
+          - pattern: got($URL, ...)
+          - pattern: got.get($URL, ...)
+          - pattern: got.post($URL, ...)
+          - pattern: got.put($URL, ...)
+          - pattern: got.delete($URL, ...)
+          - pattern: got.patch($URL, ...)
+          - pattern: got.head($URL, ...)
+          - pattern: got.stream($URL, ...)
+          # node-fetch / undici named
+          - pattern: undici.request($URL, ...)
+          - pattern: undici.fetch($URL, ...)
+          - pattern: request($URL, ...)
+          # node http / https
+          - pattern: http.get($URL, ...)
+          - pattern: https.get($URL, ...)
+          - pattern: http.request($URL, ...)
+          - pattern: https.request($URL, ...)
+          # needle
+          - pattern: needle($M, $URL, ...)
+          - pattern: needle.get($URL, ...)
+          - pattern: needle.post($URL, ...)
+          # superagent
+          - pattern: superagent($URL, ...)
+          - pattern: superagent.get($URL, ...)
+          - pattern: superagent.post($URL, ...)
+          # ky
+          - pattern: ky($URL, ...)
+          - pattern: ky.get($URL, ...)
+          - pattern: ky.post($URL, ...)
+          # phin
+          - pattern: phin($URL, ...)
+      # Exclude hard-coded URLs (plain string literal). Negative lookahead drops
+      # "..."/'...' while keeping variables, member exprs, and template literals
+      # (which are usually dynamic).
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!["']).*
+      - focus-metavariable: $URL
+    message: SSRF
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- DB QUERY (high criticality) ---
+  # Taint mode with focus on the query string only: db.query(sql, [userId]) keeps
+  # the tainted value in the params array, not in $Q, so it does NOT match. Only
+  # input concatenated/interpolated into the query text is blocked.
+  - id: js-db-query
+    mode: taint
+    pattern-sources:
+      - pattern: process.argv
+      - pattern: process.stdin
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.headers
+      - pattern: request.headers
+      - pattern: req.cookies
+      - pattern: process.env
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.query($Q, ...)
+              - pattern: $CLIENT.execute($Q, ...)
+              - pattern: knex.raw($Q, ...)
+          - focus-metavariable: $Q
+    message: DB_QUERY
+    languages: [javascript, typescript]
+    severity: WARNING

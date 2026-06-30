@@ -1,0 +1,251 @@
+rules:
+  # --- CLI / argparse ---
+  - id: python-cli-arg-sys
+    pattern: sys.argv[...]
+    message: CLI_ARG
+    languages: [python]
+    severity: INFO
+
+  - id: python-cli-arg-argparse
+    pattern-either:
+      - pattern: argparse.ArgumentParser(...)
+      - pattern: $P.parse_args(...)
+    message: CLI_ARG
+    languages: [python]
+    severity: INFO
+
+  # --- STDIN ---
+  - id: python-stdin-input
+    pattern: input(...)
+    message: STDIN
+    languages: [python]
+    severity: INFO
+
+  - id: python-stdin-raw
+    pattern-either:
+      - pattern: sys.stdin.read(...)
+      - pattern: sys.stdin.readline(...)
+    message: STDIN
+    languages: [python]
+    severity: INFO
+
+  # --- HTTP Body ---
+  - id: python-http-body-flask
+    pattern-either:
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form[...]
+      - pattern: request.form.get(...)
+    message: HTTP_BODY
+    languages: [python]
+    severity: INFO
+
+  - id: python-http-body-fastapi
+    pattern-either:
+      - pattern: await $R.json()
+      - pattern: await $R.body()
+      - pattern: await $R.form()
+    message: HTTP_BODY
+    languages: [python]
+    severity: INFO
+
+  - id: python-http-body-django
+    pattern-either:
+      - pattern: request.POST[...]
+      - pattern: request.POST.get(...)
+      - pattern: request.data[...]
+    message: HTTP_BODY
+    languages: [python]
+    severity: INFO
+
+  # --- HTTP Query / Headers ---
+  - id: python-http-query
+    pattern-either:
+      - pattern: request.args[...]
+      - pattern: request.args.get(...)
+      - pattern: request.GET[...]
+      - pattern: request.GET.get(...)
+    message: HTTP_QUERY
+    languages: [python]
+    severity: INFO
+
+  - id: python-http-header
+    pattern-either:
+      - pattern: request.headers[...]
+      - pattern: request.headers.get(...)
+    message: HTTP_HEADER
+    languages: [python]
+    severity: INFO
+
+  # --- ENV VAR ---
+  - id: python-env-var
+    pattern-either:
+      - pattern: os.environ[...]
+      - pattern: os.environ.get(...)
+      - pattern: os.getenv(...)
+    message: ENV_VAR
+    languages: [python]
+    severity: INFO
+
+  # --- FILE PATH from input ---
+  - id: python-file-path-input
+    patterns:
+      - pattern-either:
+          - pattern: open($X, ...)
+          - pattern: pathlib.Path($X)
+          - pattern: Path($X)
+      - pattern-not: open("...", ...)
+      - pattern-not: pathlib.Path("...")
+      - pattern-not: Path("...")
+    message: FILE_PATH
+    languages: [python]
+    severity: INFO
+
+  # --- EXEC INPUT (high criticality) ---
+  # Taint mode: only block when user input actually reaches the command. A fix
+  # (arg list + shell=False, or a constant command) clears the finding, so the
+  # model can satisfy the rule instead of looping. subprocess is only a sink
+  # with shell=True (the real RCE vector); os.system/eval/exec are always sinks.
+  - id: python-exec-input
+    mode: taint
+    pattern-sources:
+      - pattern: sys.argv
+      - pattern: input(...)
+      - pattern: sys.stdin.read(...)
+      - pattern: sys.stdin.readline(...)
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+      - pattern: request.headers
+      - pattern: request.cookies
+      - pattern: os.environ
+      - pattern: os.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.system($X)
+              - pattern: eval($X)
+              - pattern: exec($X)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern-either:
+              - pattern: subprocess.run($CMD, ...)
+              - pattern: subprocess.call($CMD, ...)
+              - pattern: subprocess.Popen($CMD, ...)
+          - pattern: $SP(..., shell=True, ...)
+          - focus-metavariable: $CMD
+    message: EXEC_INPUT
+    languages: [python]
+    severity: WARNING
+
+  # --- SSRF (server-side request to a non-constant URL) ---
+  # Presence-based, NOT taint: a hook sees one file/edit at a time, so it cannot
+  # follow user input across functions, an ORM round-trip, or a validation
+  # helper (the common real-world shape: Form()->validate->DB->feedparser.parse).
+  # Instead we flag any outbound fetch whose URL argument is not a string literal
+  # — that is the SSRF surface that warrants the resolve+pin defense. A hard-coded
+  # URL is excluded, so safe constant calls do not fire.
+  - id: python-ssrf
+    patterns:
+      - pattern-either:
+          # feedparser (fetches the URL itself)
+          - pattern: feedparser.parse($URL, ...)
+          # requests
+          - pattern: requests.get($URL, ...)
+          - pattern: requests.post($URL, ...)
+          - pattern: requests.put($URL, ...)
+          - pattern: requests.delete($URL, ...)
+          - pattern: requests.patch($URL, ...)
+          - pattern: requests.head($URL, ...)
+          - pattern: requests.options($URL, ...)
+          - pattern: requests.request($M, $URL, ...)
+          - pattern: requests.Session(...).get($URL, ...)
+          - pattern: requests.Session(...).post($URL, ...)
+          - pattern: requests.Session(...).request($M, $URL, ...)
+          # httpx
+          - pattern: httpx.get($URL, ...)
+          - pattern: httpx.post($URL, ...)
+          - pattern: httpx.put($URL, ...)
+          - pattern: httpx.delete($URL, ...)
+          - pattern: httpx.patch($URL, ...)
+          - pattern: httpx.head($URL, ...)
+          - pattern: httpx.request($M, $URL, ...)
+          - pattern: httpx.stream($M, $URL, ...)
+          - pattern: httpx.Client(...).get($URL, ...)
+          - pattern: httpx.Client(...).request($M, $URL, ...)
+          - pattern: httpx.AsyncClient(...).get($URL, ...)
+          # urllib
+          - pattern: urllib.request.urlopen($URL, ...)
+          - pattern: urllib.request.urlretrieve($URL, ...)
+          - pattern: urllib.request.Request($URL, ...)
+          - pattern: urlopen($URL, ...)
+          - pattern: urlretrieve($URL, ...)
+          - pattern: Request($URL, ...)
+          # aiohttp
+          - pattern: aiohttp.request($M, $URL, ...)
+          - pattern: aiohttp.ClientSession(...).get($URL, ...)
+          - pattern: aiohttp.ClientSession(...).post($URL, ...)
+          - pattern: aiohttp.ClientSession(...).request($M, $URL, ...)
+          # urllib3
+          - pattern: urllib3.request($M, $URL, ...)
+          - pattern: urllib3.PoolManager(...).request($M, $URL, ...)
+          # http.client (host, not full URL)
+          - pattern: http.client.HTTPConnection($URL, ...)
+          - pattern: http.client.HTTPSConnection($URL, ...)
+          # treq (twisted)
+          - pattern: treq.get($URL, ...)
+          - pattern: treq.post($URL, ...)
+          # pycurl
+          - pattern: $C.setopt(pycurl.URL, $URL)
+      # Exclude hard-coded targets: only a non-constant URL is an SSRF surface.
+      # Negative lookahead drops string literals ("..."/'...') while keeping
+      # variables, attributes (feed.url), and f-strings.
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!["']).*
+      - focus-metavariable: $URL
+    message: SSRF
+    languages: [python]
+    severity: WARNING
+
+  # --- DB QUERY (high criticality) ---
+  # Taint mode with focus on the query string only: a parameterized call such as
+  # cur.execute(query, (user_id,)) keeps the tainted value in the params tuple,
+  # not in $Q, so it does NOT match. Only input flowing into the query text
+  # (f-string / concat / .format) is blocked.
+  - id: python-db-query
+    mode: taint
+    pattern-sources:
+      - pattern: sys.argv
+      - pattern: input(...)
+      - pattern: sys.stdin.read(...)
+      - pattern: sys.stdin.readline(...)
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+      - pattern: request.headers
+      - pattern: request.cookies
+      - pattern: os.environ
+      - pattern: os.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $CUR.execute($Q, ...)
+              - pattern: $DB.query($Q, ...)
+          - focus-metavariable: $Q
+    message: DB_QUERY
+    languages: [python]
+    severity: WARNING

@@ -1,0 +1,14 @@
+# Cross-language (Semgrep "generic" mode) user-input patterns.
+#
+# Placeholder for v1: language-specific rules in python-user-input.yaml and
+# js-user-input.yaml cover the supported languages. Add generic-mode rules here
+# as new languages are onboarded, and register their rule ids in
+# classifier.RULE_TO_TECHNICAL.
+#
+# Example skeleton:
+#   - id: generic-env-var
+#     pattern: getenv(...)
+#     message: ENV_VAR
+#     languages: [generic]
+#     severity: INFO
+rules: []
