@@ -33,14 +33,24 @@ The hook is **fail-safe**: any internal error exits `0` so a bug never blocks th
 
 ## Install
 
+Install once (semgrep comes along as a dependency):
+
 ```bash
-pip install semgrep                       # required runtime dependency
-./install.sh [TARGET_PROJECT_DIR]         # default: current directory
+pipx install git+https://github.com/theMiddleBlue/vibegate
 ```
 
-`install.sh` copies the package into `<target>/.claude/hooks/vibegate/`
-and merges a `PreToolUse` hook (`Write|Edit|MultiEdit`) into
-`<target>/.claude/settings.json`. It is idempotent. Reload Claude Code to activate.
+Then enable/disable it **per project** — `vibegate on` writes a `PreToolUse`
+hook (`Write|Edit|MultiEdit`) into that project's `.claude/settings.local.json`:
+
+```bash
+cd your-project
+vibegate on        # enable here  (reload Claude Code to activate)
+vibegate status    # is it enabled in this project?
+vibegate off       # disable here
+```
+
+The enabled hook runs `vibegate run --host claude_code` by name (no absolute
+paths), so it keeps working wherever the tool is installed.
 
 Host selection at runtime: `--host <name>` → `VIBEGATE_HOST` env → payload
 auto-detect → default (`claude_code`).
