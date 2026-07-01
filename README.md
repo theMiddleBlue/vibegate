@@ -28,19 +28,19 @@ analysis, so it never makes things up and never costs you tokens.
 ## What happens when you turn it on
 
 ```
-                    ┌─────────────────────────────┐
-                    │   You ask Claude Code to     │
-                    │   write or edit a file       │
+                    ┌───────────────────────────────┐
+                    │   You ask Claude Code to      │
+                    │   write or edit a file        │
                     └───────────────┬───────────────┘
                                     │
                                     ▼
-                    ┌─────────────────────────────┐
+                    ┌───────────────────────────────┐
                     │   Claude Code tries to save   │
                     │   the file (Write/Edit tool)  │
                     └───────────────┬───────────────┘
                                     │
                                     ▼
-                    ┌─────────────────────────────┐
+                    ┌───────────────────────────────┐
                     │        VibeGate hook          │
                     │   (runs automatically,        │
                     │    before the file is saved)  │
@@ -51,12 +51,12 @@ analysis, so it never makes things up and never costs you tokens.
               ┌─────────────────────┼─────────────────────┐
               │                     │                     │
               ▼                     ▼                     ▼
-    ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────────┐
-    │  No risky input   │ │   Risky input,    │ │   Risky input going   │
-    │  found             │ │   but lower risk  │ │   into a DB query or  │
-    │                    │ │   (e.g. shown in  │ │   shell command,       │
-    │                    │ │   an HTTP reply)  │ │   not sanitized        │
-    └─────────┬──────────┘ └─────────┬──────────┘ └───────────┬───────────┘
+    ┌────────────────────┐ ┌────────────────────┐ ┌──────────────────────┐
+    │  No risky input    │ │   Risky input,     │ │   Risky input going  │
+    │  found             │ │   but lower risk   │ │   into a DB query or │
+    │                    │ │   (e.g. shown in   │ │   shell command,     │
+    │                    │ │   an HTTP reply)   │ │   not sanitized      │
+    └─────────┬──────────┘ └─────────┬──────────┘ └───────────┬──────────┘
               │                      │                        │
               ▼                      ▼                        ▼
       File is saved,         File is saved,            File is NOT saved.
