@@ -83,7 +83,7 @@ If VibeGate itself hits an unexpected error, it always lets the write through
 |---|---|
 | No user input, or a language it doesn't support yet | File saves normally, nothing shown |
 | User input found, but the risk is moderate (e.g. open redirect, mass assignment) | File saves, terminal shows a warning + guidance |
-| User input flows unsanitized into a critical sink (SQL/NoSQL query, shell command, template engine, deserializer, XML parser, file path, or raw HTML output) | File is **not saved** — Claude Code is told why |
+| User input flows unsanitized into a critical sink (SQL/NoSQL query, shell command, template engine, deserializer, XML parser, file path, uploaded filename, or raw HTML output) | File is **not saved** — Claude Code is told why |
 
 The full, current list of blocking categories lives in
 `formatter.BLOCKING_CATEGORIES` — that's the source of truth if this table
@@ -93,6 +93,66 @@ Today VibeGate understands **Python**, **JavaScript/TypeScript**, **Go**,
 **Java**, **PHP**, and **Ruby**, and plugs into **Claude Code** and
 **Codex**. More languages and tools can be added without touching the core
 logic.
+
+## See it in action
+
+Here is VibeGate working inside Claude Code, while it is building a real app.
+
+In this first example, Claude Code is writing a tool that fetches an RSS
+feed. VibeGate notices that the feed address comes from the user, and warns
+that this could be used to attack internal servers (this is called SSRF).
+Claude Code reads the warning and fixes the code right away, before moving
+on to the next file.
+
+<p align="center">
+  <img src="assets/vibegate_action_1.png" alt="VibeGate warning Claude Code about an SSRF risk in a feed fetching tool, and Claude Code fixing it" width="720">
+</p>
+
+In this second example, Claude Code is building an app that lets people
+upload a photo and see its details. VibeGate notices that the file name and
+other file details will later be shown on screen, and warns that this could
+be used to inject harmful code into the page (this is called XSS). Claude
+Code adjusts the code so that information is shown safely.
+
+<p align="center">
+  <img src="assets/vibegate_action_2.png" alt="VibeGate warning Claude Code about an XSS risk from uploaded file details, and Claude Code fixing it" width="720">
+</p>
+
+In both cases, nothing got blocked for no reason, and no one had to read
+through the code line by line to catch the problem. VibeGate caught it the
+moment the file was written, and the AI fixed it on the spot.
+
+## Why a gate uses fewer tokens than loading a skill
+
+There are two ways to make an AI assistant write safer code. One way is to
+load a big set of instructions about secure coding into the conversation
+before it starts, for example a checklist covering SQL injection, XSS,
+password handling, file uploads, and more. The other way is what VibeGate
+does: check the code automatically, right when a file is written, and only
+speak up when something is actually wrong.
+
+The first approach costs tokens on every single message, whether they are
+needed or not. A typical secure coding checklist covering several risk
+categories can easily add a few thousand tokens. If an AI assistant writes
+50 files in one session, and that checklist gets reloaded or kept in context
+each time, you could be paying for well over a hundred thousand tokens of
+advice that, most of the time, does not apply to the file being written
+right now. A login page and a simple color constant file do not need the
+same warnings, but a loaded checklist cannot tell them apart in advance.
+
+VibeGate flips this around. It stays silent, and costs nothing extra, for
+every file that has no risky pattern in it. Only when it finds something,
+like user input flowing into a database query, does it add a short, specific
+note about that one issue, usually a small fraction of the size of a full
+checklist. So instead of paying a fixed token cost on every file no matter
+what, you pay a small cost only on the files that actually need attention,
+and that cost is aimed exactly at the problem found, not a general lecture
+on security.
+
+This also makes the guidance more reliable. An AI assistant asked to "keep
+security in mind" while writing a hundred lines of code can simply miss one
+risky line among many. A gate does not get tired or distracted: it checks
+every single write, every time, using the same fixed rules.
 
 ## Getting started
 
