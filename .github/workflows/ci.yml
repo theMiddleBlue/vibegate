@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Explicit minimal token permissions. Fork PRs never get repo secrets (that's
+# only a risk with the `pull_request_target` trigger, which this workflow
+# deliberately does not use), but we pin this down anyway so the token can't
+# write/push/create anything even in a worst-case dependency compromise.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref (e.g. repeated pushes to a PR) so a
+# spam of commits can't queue up unbounded CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install VibeGate + dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Validate Semgrep rules
+        run: semgrep --validate --config src/vibegate/rules/
+
+      - name: Run tests
+        run: pytest tests/

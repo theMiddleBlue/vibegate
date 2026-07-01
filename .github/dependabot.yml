@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keeps the SHA-pinned actions in ci.yml current via reviewable PRs —
+  # without this, pinning to a commit means the action never updates at all,
+  # silently missing upstream security fixes.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

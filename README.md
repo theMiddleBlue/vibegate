@@ -3,6 +3,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/theMiddleBlue/vibegate/actions/workflows/ci.yml"><img src="https://github.com/theMiddleBlue/vibegate/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center">
   A security checkpoint for AI coding tools. It looks at every file an AI
   assistant writes, and stops the dangerous ones before they hit disk.
 </p>
