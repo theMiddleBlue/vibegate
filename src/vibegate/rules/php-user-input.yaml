@@ -224,6 +224,27 @@ rules:
     languages: [php]
     severity: WARNING
 
+  # --- FILE UPLOAD (high criticality) ---
+  # Taint mode: $_FILES[...]['name'] is the client-supplied original filename
+  # (not ['tmp_name'], which PHP generates server-side and is safe). Using the
+  # original name verbatim to build the destination is the classic PHP
+  # unrestricted-upload bug — path traversal, or RCE via a renamed webshell.
+  - id: php-file-upload
+    mode: taint
+    pattern-sources:
+      - pattern: $_FILES[...]['name']
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: move_uploaded_file($A, $X)
+              - pattern: file_put_contents($X, ...)
+              - pattern: rename($A, $X)
+              - pattern: copy($A, $X)
+          - focus-metavariable: $X
+    message: FILE_UPLOAD
+    languages: [php]
+    severity: WARNING
+
   # --- OPEN REDIRECT ---
   - id: php-open-redirect
     patterns:

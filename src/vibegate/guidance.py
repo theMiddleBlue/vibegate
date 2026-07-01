@@ -144,6 +144,14 @@ TECHNICAL_RISKS = {
         ],
         "severity": "HIGH",
     },
+    "FILE_UPLOAD": {
+        "risks": [
+            "Remote Code Execution via renamed webshell",
+            "Path traversal / arbitrary file write",
+            "Existing file overwrite",
+        ],
+        "severity": "CRITICAL",
+    },
 }
 
 # Semantic type -> validation, sanitization, specific risks, regex, threat model.

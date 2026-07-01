@@ -537,3 +537,69 @@ def test_analyze_ruby_mass_assignment_detected_not_blocking():
     result = analyze(InputEvent("Write", "x.rb", content))
     assert any(f.technical_category == "MASS_ASSIGNMENT" for f in result.classified)
     assert not result.should_block
+
+
+# --- New category: FILE_UPLOAD (unrestricted file upload) ---
+
+
+def test_analyze_python_file_upload_blocks_split_statement():
+    # The classic Flask idiom: filename used two statements after the upload
+    # object is fetched — exercises taint propagation through the variable.
+    content = (
+        "from flask import request\nimport os\n"
+        "f = request.files['upload']\n"
+        "f.save(os.path.join('/uploads', f.filename))\n"
+    )
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_js_file_upload_blocks():
+    content = "const dest = './uploads/' + req.file.originalname;\nfs.writeFile(dest, req.file.buffer, () => {});\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_go_file_upload_blocks():
+    content = (
+        "package main\nimport \"os\"\n"
+        "func handler() {\n"
+        '\t_, header, _ := r.FormFile("upload")\n'
+        '\tos.Create("/uploads/" + header.Filename)\n'
+        "}\n"
+    )
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_java_file_upload_blocks():
+    content = (
+        "public class T {\n"
+        "    void handle(MultipartFile file) throws Exception {\n"
+        '        file.transferTo(new File("/uploads/" + file.getOriginalFilename()));\n'
+        "    }\n"
+        "}\n"
+    )
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_php_file_upload_blocks():
+    content = "<?php\nmove_uploaded_file($_FILES['upload']['tmp_name'], '/uploads/' . $_FILES['upload']['name']);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_ruby_file_upload_blocks():
+    content = (
+        "file = params[:upload]\n"
+        'FileUtils.mv(file.tempfile.path, "/uploads/#{file.original_filename}")\n'
+    )
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
+    assert result.should_block

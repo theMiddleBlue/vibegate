@@ -202,6 +202,26 @@ rules:
     languages: [ruby]
     severity: WARNING
 
+  # --- FILE UPLOAD (high criticality) ---
+  # Taint mode: the client picks the uploaded file's name
+  # (ActionDispatch::Http::UploadedFile#original_filename), so using it
+  # verbatim to build the save path is the classic unrestricted-upload bug.
+  - id: ruby-file-upload
+    mode: taint
+    pattern-sources:
+      - pattern: $F.original_filename
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: File.open($X, ...)
+              - pattern: File.write($X, ...)
+              - pattern: FileUtils.mv($A, $X)
+              - pattern: FileUtils.cp($A, $X)
+          - focus-metavariable: $X
+    message: FILE_UPLOAD
+    languages: [ruby]
+    severity: WARNING
+
   # --- OPEN REDIRECT ---
   - id: ruby-open-redirect
     patterns:

@@ -358,6 +358,29 @@ rules:
     languages: [javascript, typescript]
     severity: WARNING
 
+  # --- FILE UPLOAD (high criticality) ---
+  # Taint mode: the client picks the uploaded file's name (multer's
+  # `.originalname`), so using it verbatim to build the save path is the
+  # classic unrestricted-upload bug — path traversal, or RCE via a renamed
+  # webshell if the destination is web-served. `.originalname` is specific
+  # enough to use as a bare attribute source.
+  - id: js-file-upload
+    mode: taint
+    pattern-sources:
+      - pattern: $F.originalname
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fs.writeFile($X, ...)
+              - pattern: fs.writeFileSync($X, ...)
+              - pattern: fs.rename($A, $X, ...)
+              - pattern: fs.copyFile($A, $X, ...)
+              - pattern: $F2.mv($X)
+          - focus-metavariable: $X
+    message: FILE_UPLOAD
+    languages: [javascript, typescript]
+    severity: WARNING
+
   # --- MASS ASSIGNMENT ---
   # Presence-based: passing the whole request body into a model
   # constructor/update lets an attacker set fields the endpoint never

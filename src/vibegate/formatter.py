@@ -41,6 +41,7 @@ BLOCKING_CATEGORIES = (
     "PATH_TRAVERSAL",
     "XXE",
     "XSS_SINK",
+    "FILE_UPLOAD",
 )
 
 

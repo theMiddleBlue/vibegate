@@ -206,6 +206,26 @@ rules:
     languages: [java]
     severity: WARNING
 
+  # --- FILE UPLOAD (high criticality) ---
+  # Taint mode: the client picks the uploaded file's name
+  # (MultipartFile.getOriginalFilename()), so using it verbatim to build the
+  # save path/destination is the classic unrestricted-upload bug.
+  - id: java-file-upload
+    mode: taint
+    pattern-sources:
+      - pattern: $F.getOriginalFilename()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new File($X)
+              - pattern: new FileOutputStream($X)
+              - pattern: Files.write(Paths.get($X), ...)
+              - pattern: $F2.transferTo($X)
+          - focus-metavariable: $X
+    message: FILE_UPLOAD
+    languages: [java]
+    severity: WARNING
+
   # --- OPEN REDIRECT ---
   - id: java-open-redirect
     patterns:

@@ -461,6 +461,34 @@ rules:
     languages: [python]
     severity: WARNING
 
+  # --- FILE UPLOAD (high criticality) ---
+  # Taint mode: the client picks the uploaded file's name, so using it verbatim
+  # to build the save path is the classic unrestricted-upload bug — it enables
+  # path traversal and, if the destination is web-served, RCE via a renamed
+  # webshell (shell.jpg.php). `.filename` (Werkzeug/Flask) is specific enough
+  # to use bare, catching the value whether it's used inline or assigned to a
+  # variable first; Django's `.name` attribute is too generic a name to use
+  # bare (it appears on countless unrelated objects), so it's only matched in
+  # the full request.FILES[...] chain — a split-statement Django variant is a
+  # known gap.
+  - id: python-file-upload
+    mode: taint
+    pattern-sources:
+      - pattern: $F.filename
+      - pattern: request.FILES[...].name
+      - pattern: request.FILES.get(...).name
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: open($X, ...)
+              - pattern: $F2.save($X)
+              - pattern: os.rename($A, $X)
+              - pattern: shutil.copy($A, $X)
+          - focus-metavariable: $X
+    message: FILE_UPLOAD
+    languages: [python]
+    severity: WARNING
+
   # --- MASS ASSIGNMENT ---
   # Presence-based: splatting the whole request body into a model constructor
   # or object update lets an attacker set fields the endpoint never intended

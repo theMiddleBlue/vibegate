@@ -38,6 +38,7 @@ RULE_TO_TECHNICAL = {
     "python-xss": "XSS_SINK",
     "python-open-redirect": "OPEN_REDIRECT",
     "python-mass-assignment": "MASS_ASSIGNMENT",
+    "python-file-upload": "FILE_UPLOAD",
     # JavaScript / TypeScript
     "js-cli-argv": "CLI_ARG",
     "js-cli-commander": "CLI_ARG",
@@ -58,6 +59,7 @@ RULE_TO_TECHNICAL = {
     "js-xss": "XSS_SINK",
     "js-open-redirect": "OPEN_REDIRECT",
     "js-mass-assignment": "MASS_ASSIGNMENT",
+    "js-file-upload": "FILE_UPLOAD",
     # Go
     "go-cli-arg": "CLI_ARG",
     "go-stdin": "STDIN",
@@ -73,6 +75,7 @@ RULE_TO_TECHNICAL = {
     "go-path-traversal": "PATH_TRAVERSAL",
     "go-xss": "XSS_SINK",
     "go-open-redirect": "OPEN_REDIRECT",
+    "go-file-upload": "FILE_UPLOAD",
     # Java
     "java-cli-arg": "CLI_ARG",
     "java-stdin": "STDIN",
@@ -90,6 +93,7 @@ RULE_TO_TECHNICAL = {
     "java-xxe": "XXE",
     "java-xss": "XSS_SINK",
     "java-open-redirect": "OPEN_REDIRECT",
+    "java-file-upload": "FILE_UPLOAD",
     # PHP
     "php-cli-arg": "CLI_ARG",
     "php-stdin": "STDIN",
@@ -107,6 +111,7 @@ RULE_TO_TECHNICAL = {
     "php-xxe": "XXE",
     "php-xss": "XSS_SINK",
     "php-open-redirect": "OPEN_REDIRECT",
+    "php-file-upload": "FILE_UPLOAD",
     # Ruby
     "ruby-cli-arg": "CLI_ARG",
     "ruby-stdin": "STDIN",
@@ -125,6 +130,7 @@ RULE_TO_TECHNICAL = {
     "ruby-xss": "XSS_SINK",
     "ruby-open-redirect": "OPEN_REDIRECT",
     "ruby-mass-assignment": "MASS_ASSIGNMENT",
+    "ruby-file-upload": "FILE_UPLOAD",
 }
 
 # Rules whose finding is intrinsically about a sink consuming a specific kind
@@ -150,11 +156,14 @@ RULE_FORCED_SEMANTIC = {
     "js-open-redirect": "REDIRECT_URL",
     "python-mass-assignment": "JSON_PAYLOAD",
     "js-mass-assignment": "JSON_PAYLOAD",
+    "python-file-upload": "FILE_NAME",
+    "js-file-upload": "FILE_NAME",
     "go-ssrf": "URL",
     "go-ssti": "TEMPLATE_STRING",
     "go-path-traversal": "FILE_PATH",
     "go-xss": "HTML_CONTENT",
     "go-open-redirect": "REDIRECT_URL",
+    "go-file-upload": "FILE_NAME",
     "java-ssrf": "URL",
     "java-ssti": "TEMPLATE_STRING",
     "java-insecure-deserialization": "SERIALIZED_DATA",
@@ -162,6 +171,7 @@ RULE_FORCED_SEMANTIC = {
     "java-xxe": "XML_PAYLOAD",
     "java-xss": "HTML_CONTENT",
     "java-open-redirect": "REDIRECT_URL",
+    "java-file-upload": "FILE_NAME",
     "php-ssrf": "URL",
     "php-ssti": "TEMPLATE_STRING",
     "php-insecure-deserialization": "SERIALIZED_DATA",
@@ -169,6 +179,7 @@ RULE_FORCED_SEMANTIC = {
     "php-xxe": "XML_PAYLOAD",
     "php-xss": "HTML_CONTENT",
     "php-open-redirect": "REDIRECT_URL",
+    "php-file-upload": "FILE_NAME",
     "ruby-ssrf": "URL",
     "ruby-ssti": "TEMPLATE_STRING",
     "ruby-insecure-deserialization": "SERIALIZED_DATA",
@@ -177,6 +188,7 @@ RULE_FORCED_SEMANTIC = {
     "ruby-xss": "HTML_CONTENT",
     "ruby-open-redirect": "REDIRECT_URL",
     "ruby-mass-assignment": "JSON_PAYLOAD",
+    "ruby-file-upload": "FILE_NAME",
 }
 
 # --- Stage B: keyword -> semantic type --------------------------------------

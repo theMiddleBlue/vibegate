@@ -186,6 +186,25 @@ rules:
     languages: [go]
     severity: WARNING
 
+  # --- FILE UPLOAD (high criticality) ---
+  # Taint mode: the client picks the uploaded file's name
+  # (*multipart.FileHeader.Filename from r.FormFile), so using it verbatim to
+  # build the save path is the classic unrestricted-upload bug.
+  - id: go-file-upload
+    mode: taint
+    pattern-sources:
+      - pattern: $F.Filename
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Create($X)
+              - pattern: os.WriteFile($X, ...)
+              - pattern: ioutil.WriteFile($X, ...)
+          - focus-metavariable: $X
+    message: FILE_UPLOAD
+    languages: [go]
+    severity: WARNING
+
   # --- OPEN REDIRECT ---
   - id: go-open-redirect
     patterns:
