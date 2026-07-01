@@ -19,6 +19,11 @@ vibegate = "vibegate.cli:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+# Fixtures under tests/fixtures/ are example vulnerable-code snippets read via
+# `.read_text()`, not test modules — several match pytest's test_*.py
+# collection pattern and import framework code (flask, etc.) that isn't a
+# project dependency, so they must never be collected/imported directly.
+norecursedirs = ["tests/fixtures"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
