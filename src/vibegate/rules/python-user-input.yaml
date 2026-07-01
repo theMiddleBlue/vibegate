@@ -249,3 +249,229 @@ rules:
     message: DB_QUERY
     languages: [python]
     severity: WARNING
+
+  # --- SSTI (server-side template injection) ---
+  # Presence-based, like python-ssrf: flag any template render/compile call
+  # whose TEMPLATE SOURCE (not its variables) is not a string literal. Letting
+  # an attacker supply the template itself means they control template syntax,
+  # not just data rendered inside a fixed template.
+  - id: python-ssti
+    patterns:
+      - pattern-either:
+          - pattern: render_template_string($TPL, ...)
+          - pattern: jinja2.Template($TPL)
+          - pattern: Template($TPL)
+          - pattern: django.template.Template($TPL)
+      - metavariable-regex:
+          metavariable: $TPL
+          regex: ^(?!["']).*
+      - focus-metavariable: $TPL
+    message: TEMPLATE_INJECTION
+    languages: [python]
+    severity: WARNING
+
+  # --- INSECURE DESERIALIZATION (high criticality) ---
+  # Taint mode: pickle/marshal reconstruct arbitrary objects on load (RCE);
+  # yaml.load without an explicit safe Loader is equally dangerous.
+  # yaml.safe_load and yaml.load(x, Loader=yaml.SafeLoader) are not matched.
+  - id: python-insecure-deserialization
+    mode: taint
+    pattern-sources:
+      - pattern: sys.argv
+      - pattern: input(...)
+      - pattern: sys.stdin.read(...)
+      - pattern: sys.stdin.readline(...)
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+      - pattern: request.headers
+      - pattern: request.cookies
+      - pattern: os.environ
+      - pattern: os.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: pickle.loads($X)
+              - pattern: pickle.load($X)
+              - pattern: marshal.loads($X)
+              - pattern: yaml.load($X)
+          - pattern-not: yaml.load($X, Loader=yaml.SafeLoader)
+          - focus-metavariable: $X
+    message: INSECURE_DESERIALIZATION
+    languages: [python]
+    severity: WARNING
+
+  # --- NOSQL INJECTION (high criticality) ---
+  # Taint mode focused on the whole query object: passing a request body
+  # straight through as a Mongo filter lets an attacker inject operators
+  # ($gt, $ne, $where) to bypass auth/filters. A parameterized/explicitly
+  # built filter dict does not trace back to a tainted source, so it's safe.
+  - id: python-nosql-query
+    mode: taint
+    pattern-sources:
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $COL.find($Q)
+              - pattern: $COL.find($Q, ...)
+              - pattern: $COL.find_one($Q)
+              - pattern: $COL.find_one($Q, ...)
+              - pattern: $COL.update_one($Q, ...)
+              - pattern: $COL.delete_one($Q)
+              - pattern: $COL.count_documents($Q)
+          - focus-metavariable: $Q
+    message: NOSQL_QUERY
+    languages: [python]
+    severity: WARNING
+
+  # --- PATH TRAVERSAL (high criticality) ---
+  # Taint mode: unlike python-file-path-input (presence-only, INFO — "a
+  # variable feeds a file path"), this traces an actual tainted value into a
+  # filesystem sink, which is what makes traversal ("../../etc/passwd")
+  # exploitable rather than theoretical.
+  - id: python-path-traversal
+    mode: taint
+    pattern-sources:
+      - pattern: sys.argv
+      - pattern: input(...)
+      - pattern: sys.stdin.read(...)
+      - pattern: sys.stdin.readline(...)
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+      - pattern: request.headers
+      - pattern: request.cookies
+      - pattern: os.environ
+      - pattern: os.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: open($X, ...)
+              - pattern: os.remove($X)
+              - pattern: os.unlink($X)
+              - pattern: shutil.rmtree($X)
+              - pattern: send_file($X)
+              - pattern: send_from_directory($D, $X)
+          - focus-metavariable: $X
+    message: PATH_TRAVERSAL
+    languages: [python]
+    severity: WARNING
+
+  # --- XXE (XML External Entity) ---
+  - id: python-xxe
+    mode: taint
+    pattern-sources:
+      - pattern: sys.argv
+      - pattern: input(...)
+      - pattern: sys.stdin.read(...)
+      - pattern: sys.stdin.readline(...)
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+      - pattern: request.headers
+      - pattern: request.cookies
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: lxml.etree.fromstring($X)
+              - pattern: lxml.etree.fromstring($X, ...)
+              - pattern: lxml.etree.parse($X)
+              - pattern: lxml.etree.parse($X, ...)
+              - pattern: xml.dom.minidom.parseString($X)
+              - pattern: xml.sax.parseString($X, ...)
+              - pattern: xmltodict.parse($X)
+              - pattern: xmltodict.parse($X, ...)
+          - focus-metavariable: $X
+    message: XXE
+    languages: [python]
+    severity: WARNING
+
+  # --- XSS (unsafe HTML output) ---
+  # escape()/markupsafe.escape() are declared sanitizers so a value that was
+  # already properly escaped before being wrapped doesn't keep tripping the
+  # rule (Markup(escape(x)) is the standard safe idiom, not a bypass).
+  - id: python-xss
+    mode: taint
+    pattern-sources:
+      - pattern: request.json
+      - pattern: request.json()
+      - pattern: request.get_json(...)
+      - pattern: request.form
+      - pattern: request.args
+      - pattern: request.GET
+      - pattern: request.POST
+      - pattern: request.data
+      - pattern: request.values
+    pattern-sanitizers:
+      - pattern: escape(...)
+      - pattern: markupsafe.escape(...)
+      - pattern: html.escape(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: Markup($X)
+              - pattern: markupsafe.Markup($X)
+              - pattern: mark_safe($X)
+              - pattern: django.utils.safestring.mark_safe($X)
+          - focus-metavariable: $X
+    message: XSS_SINK
+    languages: [python]
+    severity: WARNING
+
+  # --- OPEN REDIRECT ---
+  # Presence-based, like python-ssrf: a redirect target that isn't a string
+  # literal can send victims to an attacker-controlled domain (phishing).
+  - id: python-open-redirect
+    patterns:
+      - pattern-either:
+          - pattern: redirect($TARGET, ...)
+          - pattern: flask.redirect($TARGET, ...)
+          - pattern: HttpResponseRedirect($TARGET)
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!["']).*
+      - focus-metavariable: $TARGET
+    message: OPEN_REDIRECT
+    languages: [python]
+    severity: WARNING
+
+  # --- MASS ASSIGNMENT ---
+  # Presence-based: splatting the whole request body into a model constructor
+  # or object update lets an attacker set fields the endpoint never intended
+  # to expose (e.g. is_admin, role).
+  - id: python-mass-assignment
+    patterns:
+      - pattern-either:
+          - pattern: $MODEL(**request.json)
+          - pattern: $MODEL(**request.get_json(...))
+          - pattern: $OBJ.__dict__.update(request.json)
+          - pattern: $OBJ.__dict__.update(request.get_json(...))
+    message: MASS_ASSIGNMENT
+    languages: [python]
+    severity: WARNING

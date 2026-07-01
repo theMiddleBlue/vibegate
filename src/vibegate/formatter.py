@@ -32,7 +32,16 @@ CONFIDENCE_LABEL = {
     "low": "? LOW",
 }
 
-BLOCKING_CATEGORIES = ("EXEC_INPUT", "DB_QUERY")
+BLOCKING_CATEGORIES = (
+    "EXEC_INPUT",
+    "DB_QUERY",
+    "TEMPLATE_INJECTION",
+    "INSECURE_DESERIALIZATION",
+    "NOSQL_QUERY",
+    "PATH_TRAVERSAL",
+    "XXE",
+    "XSS_SINK",
+)
 
 
 def format_output(

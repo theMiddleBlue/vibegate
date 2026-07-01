@@ -28,6 +28,10 @@ EXT_TO_LANGUAGE = {
     ".tsx": "typescript",
     ".mjs": "javascript",
     ".cjs": "javascript",
+    ".go": "go",
+    ".java": "java",
+    ".php": "php",
+    ".rb": "ruby",
 }
 
 
@@ -63,6 +67,15 @@ def analyze(event: InputEvent, rules_dir: Path = RULES_DIR) -> AnalysisResult:
             return AnalysisResult()
 
         classified = classify_findings(findings, event.content)
+        if event.changed_lines is not None:
+            # Partial edit: content is the whole reconstructed file (for
+            # accurate taint tracing), but only findings inside the lines
+            # this specific edit introduced should be surfaced/blocked.
+            classified = [
+                f
+                for f in classified
+                if any(start <= f.line <= end for start, end in event.changed_lines)
+            ]
         if not classified:
             return AnalysisResult()
 

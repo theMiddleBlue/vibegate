@@ -79,3 +79,41 @@ def test_unknown_rule_dropped():
 
 def test_extract_varname_get_call():
     assert extract_varname('request.json.get("email")') == "email"
+
+
+# --- Suppression (# vibegate-ignore) ---
+
+
+def test_bare_ignore_suppresses_finding():
+    content = 'password = request.json.get("password")  # vibegate-ignore\n'
+    findings = [_finding("rules.python-http-body-flask", 1, "")]
+    assert classify_findings(findings, content) == []
+
+
+def test_categorized_ignore_suppresses_matching_category():
+    content = (
+        'password = request.json.get("password")  # vibegate-ignore: HTTP_BODY\n'
+    )
+    findings = [_finding("rules.python-http-body-flask", 1, "")]
+    assert classify_findings(findings, content) == []
+
+
+def test_categorized_ignore_does_not_suppress_other_category():
+    content = 'password = request.json.get("password")  # vibegate-ignore: DB_QUERY\n'
+    findings = [_finding("rules.python-http-body-flask", 1, "")]
+    result = classify_findings(findings, content)
+    assert len(result) == 1
+    assert result[0].technical_category == "HTTP_BODY"
+
+
+def test_categorized_ignore_matches_semantic_type():
+    content = 'password = request.json.get("password")  # vibegate-ignore: PASSWORD\n'
+    findings = [_finding("rules.python-http-body-flask", 1, "")]
+    assert classify_findings(findings, content) == []
+
+
+def test_no_marker_behaves_as_before():
+    content = 'password = request.json.get("password")\n'
+    findings = [_finding("rules.python-http-body-flask", 1, "")]
+    result = classify_findings(findings, content)
+    assert len(result) == 1

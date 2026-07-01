@@ -1,0 +1,237 @@
+rules:
+  # --- CLI ---
+  - id: php-cli-arg
+    pattern-either:
+      - pattern: $argv[...]
+      - pattern: getopt(...)
+    message: CLI_ARG
+    languages: [php]
+    severity: INFO
+
+  # --- STDIN ---
+  - id: php-stdin
+    pattern-either:
+      - pattern: fgets(STDIN)
+      - pattern: readline(...)
+    message: STDIN
+    languages: [php]
+    severity: INFO
+
+  # --- HTTP Body / Query / Cookies ---
+  - id: php-http-body
+    pattern-either:
+      - pattern: $_POST[...]
+      - pattern: file_get_contents("php://input")
+    message: HTTP_BODY
+    languages: [php]
+    severity: INFO
+
+  - id: php-http-query
+    pattern-either:
+      - pattern: $_GET[...]
+      - pattern: $_REQUEST[...]
+    message: HTTP_QUERY
+    languages: [php]
+    severity: INFO
+
+  - id: php-http-header
+    pattern-either:
+      - pattern: $_SERVER[...]
+      - pattern: getallheaders(...)
+    message: HTTP_HEADER
+    languages: [php]
+    severity: INFO
+
+  # --- ENV VAR ---
+  - id: php-env-var
+    pattern-either:
+      - pattern: $_ENV[...]
+      - pattern: getenv(...)
+    message: ENV_VAR
+    languages: [php]
+    severity: INFO
+
+  # --- FILE PATH from input ---
+  - id: php-file-path-input
+    patterns:
+      - pattern-either:
+          - pattern: fopen($X, ...)
+          - pattern: file_get_contents($X)
+      - pattern-not: fopen("...", ...)
+      - pattern-not: file_get_contents("...")
+    message: FILE_PATH
+    languages: [php]
+    severity: INFO
+
+  # --- EXEC INPUT (high criticality) ---
+  - id: php-exec-input
+    mode: taint
+    pattern-sources:
+      - pattern: $argv
+      - pattern: $_GET[...]
+      - pattern: $_POST[...]
+      - pattern: $_REQUEST[...]
+      - pattern: $_SERVER[...]
+      - pattern: $_COOKIE[...]
+      - pattern: getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec($X)
+              - pattern: shell_exec($X)
+              - pattern: system($X)
+              - pattern: passthru($X)
+              - pattern: popen($X, ...)
+          - focus-metavariable: $X
+    message: EXEC_INPUT
+    languages: [php]
+    severity: WARNING
+
+  # --- SSRF (server-side request to a non-constant URL) ---
+  - id: php-ssrf
+    patterns:
+      - pattern-either:
+          - pattern: file_get_contents($URL)
+          - pattern: curl_setopt($CH, CURLOPT_URL, $URL)
+          - pattern: fopen($URL, ...)
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!["']).*
+      - focus-metavariable: $URL
+    message: SSRF
+    languages: [php]
+    severity: WARNING
+
+  # --- DB QUERY (high criticality) ---
+  # Taint mode focused on the query string: a parameterized PDO/mysqli call
+  # with bound params keeps the tainted value out of $Q, so it is not matched.
+  - id: php-db-query
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET[...]
+      - pattern: $_POST[...]
+      - pattern: $_REQUEST[...]
+      - pattern: $_SERVER[...]
+      - pattern: $_COOKIE[...]
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: mysqli_query($CONN, $Q)
+              - pattern: $CONN->query($Q)
+              - pattern: $PDO->query($Q)
+          - focus-metavariable: $Q
+    message: DB_QUERY
+    languages: [php]
+    severity: WARNING
+
+  # --- SSTI (server-side template injection) ---
+  - id: php-ssti
+    patterns:
+      - pattern-either:
+          - pattern: $TWIG->createTemplate($TPL)
+          - pattern: eval("?>" . $TPL)
+      - metavariable-regex:
+          metavariable: $TPL
+          regex: ^(?!["']).*
+      - focus-metavariable: $TPL
+    message: TEMPLATE_INJECTION
+    languages: [php]
+    severity: WARNING
+
+  # --- INSECURE DESERIALIZATION (high criticality) ---
+  # unserialize() on attacker-controlled bytes is the classic PHP object
+  # injection RCE vector; json_decode is unaffected and not matched.
+  - id: php-insecure-deserialization
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET[...]
+      - pattern: $_POST[...]
+      - pattern: $_REQUEST[...]
+      - pattern: $_COOKIE[...]
+      - pattern: file_get_contents("php://input")
+    pattern-sinks:
+      - patterns:
+          - pattern: unserialize($X)
+          - focus-metavariable: $X
+    message: INSECURE_DESERIALIZATION
+    languages: [php]
+    severity: WARNING
+
+  # --- PATH TRAVERSAL (high criticality) ---
+  # Classic PHP LFI/traversal: a tainted path reaching include/require or a
+  # file read/write function.
+  - id: php-path-traversal
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET[...]
+      - pattern: $_POST[...]
+      - pattern: $_REQUEST[...]
+      - pattern: $_SERVER[...]
+      - pattern: $_COOKIE[...]
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: include($X)
+              - pattern: include_once($X)
+              - pattern: require($X)
+              - pattern: require_once($X)
+              - pattern: file_get_contents($X)
+              - pattern: unlink($X)
+          - focus-metavariable: $X
+    message: PATH_TRAVERSAL
+    languages: [php]
+    severity: WARNING
+
+  # --- XXE (XML External Entity) ---
+  # DOMDocument/simplexml resolve external entities when LIBXML_NOENT (or an
+  # equivalent legacy default) is in effect.
+  - id: php-xxe
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET[...]
+      - pattern: $_POST[...]
+      - pattern: file_get_contents("php://input")
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: simplexml_load_string($X, ...)
+              - pattern: $DOC->loadXML($X, ...)
+          - focus-metavariable: $X
+    message: XXE
+    languages: [php]
+    severity: WARNING
+
+  # --- XSS (unsafe HTML output) ---
+  # htmlspecialchars/htmlentities are declared sanitizers so correctly-escaped
+  # output (the fix a model should converge on) doesn't keep tripping the rule.
+  - id: php-xss
+    mode: taint
+    pattern-sources:
+      - pattern: $_GET[...]
+      - pattern: $_POST[...]
+      - pattern: $_REQUEST[...]
+    pattern-sanitizers:
+      - pattern: htmlspecialchars(...)
+      - pattern: htmlentities(...)
+    pattern-sinks:
+      - patterns:
+          - pattern: echo $X;
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: print($X);
+          - focus-metavariable: $X
+    message: XSS_SINK
+    languages: [php]
+    severity: WARNING
+
+  # --- OPEN REDIRECT ---
+  - id: php-open-redirect
+    patterns:
+      - pattern: 'header("Location: " . $TARGET)'
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!["']).*
+      - focus-metavariable: $TARGET
+    message: OPEN_REDIRECT
+    languages: [php]
+    severity: WARNING

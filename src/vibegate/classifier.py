@@ -30,6 +30,14 @@ RULE_TO_TECHNICAL = {
     "python-exec-input": "EXEC_INPUT",
     "python-db-query": "DB_QUERY",
     "python-ssrf": "URL_FETCH",
+    "python-ssti": "TEMPLATE_INJECTION",
+    "python-insecure-deserialization": "INSECURE_DESERIALIZATION",
+    "python-nosql-query": "NOSQL_QUERY",
+    "python-path-traversal": "PATH_TRAVERSAL",
+    "python-xxe": "XXE",
+    "python-xss": "XSS_SINK",
+    "python-open-redirect": "OPEN_REDIRECT",
+    "python-mass-assignment": "MASS_ASSIGNMENT",
     # JavaScript / TypeScript
     "js-cli-argv": "CLI_ARG",
     "js-cli-commander": "CLI_ARG",
@@ -42,14 +50,133 @@ RULE_TO_TECHNICAL = {
     "js-exec-input": "EXEC_INPUT",
     "js-db-query": "DB_QUERY",
     "js-ssrf": "URL_FETCH",
+    "js-ssti": "TEMPLATE_INJECTION",
+    "js-insecure-deserialization": "INSECURE_DESERIALIZATION",
+    "js-nosql-query": "NOSQL_QUERY",
+    "js-path-traversal": "PATH_TRAVERSAL",
+    "js-xxe": "XXE",
+    "js-xss": "XSS_SINK",
+    "js-open-redirect": "OPEN_REDIRECT",
+    "js-mass-assignment": "MASS_ASSIGNMENT",
+    # Go
+    "go-cli-arg": "CLI_ARG",
+    "go-stdin": "STDIN",
+    "go-http-body": "HTTP_BODY",
+    "go-http-query": "HTTP_QUERY",
+    "go-http-header": "HTTP_HEADER",
+    "go-env-var": "ENV_VAR",
+    "go-file-path-input": "FILE_PATH",
+    "go-exec-input": "EXEC_INPUT",
+    "go-db-query": "DB_QUERY",
+    "go-ssrf": "URL_FETCH",
+    "go-ssti": "TEMPLATE_INJECTION",
+    "go-path-traversal": "PATH_TRAVERSAL",
+    "go-xss": "XSS_SINK",
+    "go-open-redirect": "OPEN_REDIRECT",
+    # Java
+    "java-cli-arg": "CLI_ARG",
+    "java-stdin": "STDIN",
+    "java-http-body": "HTTP_BODY",
+    "java-http-query": "HTTP_QUERY",
+    "java-http-header": "HTTP_HEADER",
+    "java-env-var": "ENV_VAR",
+    "java-file-path-input": "FILE_PATH",
+    "java-exec-input": "EXEC_INPUT",
+    "java-db-query": "DB_QUERY",
+    "java-ssrf": "URL_FETCH",
+    "java-ssti": "TEMPLATE_INJECTION",
+    "java-insecure-deserialization": "INSECURE_DESERIALIZATION",
+    "java-path-traversal": "PATH_TRAVERSAL",
+    "java-xxe": "XXE",
+    "java-xss": "XSS_SINK",
+    "java-open-redirect": "OPEN_REDIRECT",
+    # PHP
+    "php-cli-arg": "CLI_ARG",
+    "php-stdin": "STDIN",
+    "php-http-body": "HTTP_BODY",
+    "php-http-query": "HTTP_QUERY",
+    "php-http-header": "HTTP_HEADER",
+    "php-env-var": "ENV_VAR",
+    "php-file-path-input": "FILE_PATH",
+    "php-exec-input": "EXEC_INPUT",
+    "php-db-query": "DB_QUERY",
+    "php-ssrf": "URL_FETCH",
+    "php-ssti": "TEMPLATE_INJECTION",
+    "php-insecure-deserialization": "INSECURE_DESERIALIZATION",
+    "php-path-traversal": "PATH_TRAVERSAL",
+    "php-xxe": "XXE",
+    "php-xss": "XSS_SINK",
+    "php-open-redirect": "OPEN_REDIRECT",
+    # Ruby
+    "ruby-cli-arg": "CLI_ARG",
+    "ruby-stdin": "STDIN",
+    "ruby-http-body": "HTTP_BODY",
+    "ruby-http-query": "HTTP_QUERY",
+    "ruby-http-header": "HTTP_HEADER",
+    "ruby-env-var": "ENV_VAR",
+    "ruby-file-path-input": "FILE_PATH",
+    "ruby-exec-input": "EXEC_INPUT",
+    "ruby-db-query": "DB_QUERY",
+    "ruby-ssrf": "URL_FETCH",
+    "ruby-ssti": "TEMPLATE_INJECTION",
+    "ruby-insecure-deserialization": "INSECURE_DESERIALIZATION",
+    "ruby-path-traversal": "PATH_TRAVERSAL",
+    "ruby-xxe": "XXE",
+    "ruby-xss": "XSS_SINK",
+    "ruby-open-redirect": "OPEN_REDIRECT",
+    "ruby-mass-assignment": "MASS_ASSIGNMENT",
 }
 
-# Rules whose finding is intrinsically about a URL being fetched server-side:
-# force the semantic type to URL so the SSRF guidance always shows, regardless
-# of the variable name (the name-based stage misses target/uri/endpoint/...).
+# Rules whose finding is intrinsically about a sink consuming a specific kind
+# of payload (a URL, a template, a query filter, ...): force the semantic type
+# so the guidance always shows the right threat model, regardless of the
+# variable name (the name-based stage misses target/uri/endpoint/...).
 RULE_FORCED_SEMANTIC = {
     "python-ssrf": "URL",
     "js-ssrf": "URL",
+    "python-ssti": "TEMPLATE_STRING",
+    "js-ssti": "TEMPLATE_STRING",
+    "python-insecure-deserialization": "SERIALIZED_DATA",
+    "js-insecure-deserialization": "SERIALIZED_DATA",
+    "python-nosql-query": "NOSQL_FILTER",
+    "js-nosql-query": "NOSQL_FILTER",
+    "python-path-traversal": "FILE_PATH",
+    "js-path-traversal": "FILE_PATH",
+    "python-xxe": "XML_PAYLOAD",
+    "js-xxe": "XML_PAYLOAD",
+    "python-xss": "HTML_CONTENT",
+    "js-xss": "HTML_CONTENT",
+    "python-open-redirect": "REDIRECT_URL",
+    "js-open-redirect": "REDIRECT_URL",
+    "python-mass-assignment": "JSON_PAYLOAD",
+    "js-mass-assignment": "JSON_PAYLOAD",
+    "go-ssrf": "URL",
+    "go-ssti": "TEMPLATE_STRING",
+    "go-path-traversal": "FILE_PATH",
+    "go-xss": "HTML_CONTENT",
+    "go-open-redirect": "REDIRECT_URL",
+    "java-ssrf": "URL",
+    "java-ssti": "TEMPLATE_STRING",
+    "java-insecure-deserialization": "SERIALIZED_DATA",
+    "java-path-traversal": "FILE_PATH",
+    "java-xxe": "XML_PAYLOAD",
+    "java-xss": "HTML_CONTENT",
+    "java-open-redirect": "REDIRECT_URL",
+    "php-ssrf": "URL",
+    "php-ssti": "TEMPLATE_STRING",
+    "php-insecure-deserialization": "SERIALIZED_DATA",
+    "php-path-traversal": "FILE_PATH",
+    "php-xxe": "XML_PAYLOAD",
+    "php-xss": "HTML_CONTENT",
+    "php-open-redirect": "REDIRECT_URL",
+    "ruby-ssrf": "URL",
+    "ruby-ssti": "TEMPLATE_STRING",
+    "ruby-insecure-deserialization": "SERIALIZED_DATA",
+    "ruby-path-traversal": "FILE_PATH",
+    "ruby-xxe": "XML_PAYLOAD",
+    "ruby-xss": "HTML_CONTENT",
+    "ruby-open-redirect": "REDIRECT_URL",
+    "ruby-mass-assignment": "JSON_PAYLOAD",
 }
 
 # --- Stage B: keyword -> semantic type --------------------------------------
@@ -217,7 +344,11 @@ VARNAME_TO_SEMANTIC = {
 # position, not by alternation order, so the priority must be explicit.)
 _PRIORITY_PATTERNS = (
     re.compile(r"""\.get\(\s*["'](\w+)["']""", re.IGNORECASE),  # .get("key")
-    re.compile(r"""\[\s*["'](\w+)["']\s*\]"""),  # ["key"]
+    re.compile(r"""\[\s*["'](\w+)["']\s*\]"""),  # ["key"] / $_GET['key']
+    re.compile(r"\[\s*:(\w+)\s*\]"),  # Ruby symbol key: params[:key]
+    re.compile(
+        r"""\.(?:FormValue|PostFormValue|getParameter|getHeader|getParameterValues)\(\s*["'](\w+)["']""",
+    ),  # Go/Java accessor-style calls: r.FormValue("key"), request.getParameter("key")
     re.compile(r"parse_args\(\)\.(\w+)"),  # argparse namespace
 )
 _ASSIGN_PATTERN = re.compile(
@@ -277,6 +408,30 @@ def extract_varname(snippet: str) -> str | None:
         if w not in _SKIP_WORDS:
             return w
     return None
+
+
+# Suppression marker, e.g. `# vibegate-ignore` or `// vibegate-ignore: DB_QUERY,SQL_QUERY`.
+# Matched against the raw source line regardless of the language's comment
+# syntax, so one regex covers every supported language.
+_IGNORE_PATTERN = re.compile(r"vibegate-ignore(?:\s*:\s*([\w,\s]+))?", re.IGNORECASE)
+
+
+def _is_suppressed(
+    content_lines: list[str], line: int, technical: str, semantic: str
+) -> bool:
+    """A bare marker suppresses every finding on that line; a comma-separated
+    category list only suppresses a match against the technical category or
+    the semantic type (case-insensitive)."""
+    if line < 1 or line > len(content_lines):
+        return False
+    match = _IGNORE_PATTERN.search(content_lines[line - 1])
+    if not match:
+        return False
+    categories = match.group(1)
+    if not categories:
+        return True
+    wanted = {c.strip().upper() for c in categories.split(",") if c.strip()}
+    return technical.upper() in wanted or semantic.upper() in wanted
 
 
 def _snippet_for(finding: dict, content_lines: list[str]) -> str:
@@ -344,6 +499,9 @@ def classify_findings(
         if not semantic:
             semantic = "FREE_TEXT"
             confidence = "low"
+
+        if _is_suppressed(content_lines, line, technical, semantic):
+            continue
 
         classified.append(
             ClassifiedFinding(

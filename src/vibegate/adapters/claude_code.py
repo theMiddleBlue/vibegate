@@ -4,8 +4,14 @@ Input  (stdin JSON) — tool_input shape varies by tool:
     Write:     {"file_path": "...", "content": "..."}
     Edit:      {"file_path": "...", "old_string": "...", "new_string": "..."}
     MultiEdit: {"file_path": "...", "edits": [{"new_string": "..."}, ...]}
-We analyze only the text being introduced (content / new_string), never the
-old_string being replaced.
+
+For Edit/MultiEdit we reconstruct the full post-edit file from disk (replaying
+old_string -> new_string against the current content) so taint rules can see a
+source and a sink even when they were introduced by separate edits. Only
+findings landing on the lines this edit actually changed are kept — see
+``core.analyze``'s use of ``InputEvent.changed_lines``. If reconstruction isn't
+possible (new file, old_string no longer matches, unreadable path), we fall
+back to scanning just the newly-introduced text, as before.
 
 Output:
     - terminal report -> stderr (visible to the user)
@@ -16,8 +22,10 @@ Output:
 
 from __future__ import annotations
 
+import difflib
 import json
 import sys
+from pathlib import Path
 
 from ..models import AnalysisResult, InputEvent
 from .base import HostAdapter
@@ -52,6 +60,64 @@ def _extract_content(tool_input: dict) -> str:
     )
 
 
+def _edits_for(tool_name: str, tool_input: dict) -> list[dict] | None:
+    """Return the ordered old_string/new_string edits for Edit/MultiEdit, or
+    None when the payload doesn't carry that shape (Write, or a host-specific
+    alias like new_content)."""
+    if tool_name == "MultiEdit":
+        edits = tool_input.get("edits")
+        if isinstance(edits, list) and edits and all(
+            isinstance(e, dict) and e.get("old_string") and "new_string" in e
+            for e in edits
+        ):
+            return edits
+        return None
+    if tool_name == "Edit" and tool_input.get("old_string") and "new_string" in tool_input:
+        return [tool_input]
+    return None
+
+
+def _changed_line_ranges(original: str, final: str) -> list[tuple[int, int]]:
+    """1-indexed inclusive line ranges in ``final`` that differ from ``original``."""
+    orig_lines = original.splitlines()
+    final_lines = final.splitlines()
+    matcher = difflib.SequenceMatcher(None, orig_lines, final_lines, autojunk=False)
+    ranges = []
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("replace", "insert") and j2 > j1:
+            ranges.append((j1 + 1, j2))
+    return ranges
+
+
+def _reconstruct_full_content(
+    file_path: str, tool_name: str, tool_input: dict
+) -> tuple[str, list[tuple[int, int]]] | None:
+    """Rebuild the full post-edit file by replaying old_string -> new_string
+    edits against the on-disk content. Returns None when reconstruction isn't
+    possible, so the caller can fall back to scanning just the new fragment.
+    """
+    edits = _edits_for(tool_name, tool_input)
+    if not edits:
+        return None
+    try:
+        original = Path(file_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+    current = original
+    for edit in edits:
+        old = edit.get("old_string", "")
+        new = edit.get("new_string", "")
+        if not old or old not in current:
+            return None
+        if edit.get("replace_all"):
+            current = current.replace(old, new)
+        else:
+            current = current.replace(old, new, 1)
+
+    return current, _changed_line_ranges(original, current)
+
+
 class ClaudeCodeAdapter(HostAdapter):
     name = "claude_code"
 
@@ -66,14 +132,27 @@ class ClaudeCodeAdapter(HostAdapter):
             return None
 
         tool_input = event.get("tool_input", {}) or {}
-        content = _extract_content(tool_input)
         file_path = tool_input.get("file_path", "unknown")
+
+        changed_lines: list[tuple[int, int]] | None = None
+        content: str
+        if tool_name in ("Edit", "MultiEdit"):
+            reconstructed = _reconstruct_full_content(file_path, tool_name, tool_input)
+            if reconstructed:
+                content, changed_lines = reconstructed
+            else:
+                content = _extract_content(tool_input)
+        else:
+            content = _extract_content(tool_input)
 
         if not content:
             return None
 
         return InputEvent(
-            tool_name=tool_name, file_path=file_path, content=content
+            tool_name=tool_name,
+            file_path=file_path,
+            content=content,
+            changed_lines=changed_lines,
         )
 
     def emit(self, result: AnalysisResult) -> int:

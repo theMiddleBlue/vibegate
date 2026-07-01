@@ -22,6 +22,13 @@ class InputEvent:
     file_path: str
     content: str
     language: str | None = None
+    changed_lines: list[tuple[int, int]] | None = None
+    """1-indexed inclusive (start, end) ranges of lines that this specific
+    edit introduced, when known. ``None`` means "no filtering" — every
+    finding in ``content`` is in scope (a full ``Write``, or an ``Edit``
+    whose full-file reconstruction fell back to scanning just the new
+    fragment). When set, only findings landing in one of these ranges should
+    be reported, even though ``content`` may be the whole file."""
 
 
 @dataclass

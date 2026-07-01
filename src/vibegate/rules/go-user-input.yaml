@@ -1,0 +1,199 @@
+rules:
+  # --- CLI ---
+  - id: go-cli-arg
+    pattern-either:
+      - pattern: os.Args[...]
+      - pattern: flag.Parse(...)
+    message: CLI_ARG
+    languages: [go]
+    severity: INFO
+
+  # --- STDIN ---
+  - id: go-stdin
+    pattern-either:
+      - pattern: bufio.NewReader(os.Stdin)
+      - pattern: fmt.Scan(...)
+      - pattern: fmt.Scanln(...)
+    message: STDIN
+    languages: [go]
+    severity: INFO
+
+  # --- HTTP Body ---
+  - id: go-http-body
+    pattern-either:
+      - pattern: json.NewDecoder($R.Body).Decode(...)
+      - pattern: ioutil.ReadAll($R.Body)
+      - pattern: io.ReadAll($R.Body)
+    message: HTTP_BODY
+    languages: [go]
+    severity: INFO
+
+  # --- HTTP Query / Headers ---
+  - id: go-http-query
+    pattern-either:
+      - pattern: $R.URL.Query().Get(...)
+      - pattern: $R.FormValue(...)
+      - pattern: $R.PostFormValue(...)
+    message: HTTP_QUERY
+    languages: [go]
+    severity: INFO
+
+  - id: go-http-header
+    pattern: $R.Header.Get(...)
+    message: HTTP_HEADER
+    languages: [go]
+    severity: INFO
+
+  # --- ENV VAR ---
+  - id: go-env-var
+    pattern-either:
+      - pattern: os.Getenv(...)
+      - pattern: os.LookupEnv(...)
+    message: ENV_VAR
+    languages: [go]
+    severity: INFO
+
+  # --- FILE PATH from input ---
+  - id: go-file-path-input
+    patterns:
+      - pattern-either:
+          - pattern: os.Open($X)
+          - pattern: os.ReadFile($X)
+          - pattern: ioutil.ReadFile($X)
+      - pattern-not: os.Open("...")
+      - pattern-not: os.ReadFile("...")
+      - pattern-not: ioutil.ReadFile("...")
+    message: FILE_PATH
+    languages: [go]
+    severity: INFO
+
+  # --- EXEC INPUT (high criticality) ---
+  # Note: taint sources here are limited to calls that directly RETURN the
+  # tainted string (os.Args, r.FormValue, os.Getenv, ...). Go's idiomatic
+  # `json.NewDecoder(r.Body).Decode(&v)` writes into v by pointer rather than
+  # returning a value, which plain pattern-based taint sourcing can't trace —
+  # JSON-body-sourced taint chains are a known gap for this language.
+  - id: go-exec-input
+    mode: taint
+    pattern-sources:
+      - pattern: os.Args
+      - pattern: $R.URL.Query().Get(...)
+      - pattern: $R.FormValue(...)
+      - pattern: $R.PostFormValue(...)
+      - pattern: $R.Header.Get(...)
+      - pattern: os.Getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: exec.Command("sh", "-c", $X)
+              - pattern: exec.Command("bash", "-c", $X)
+          - focus-metavariable: $X
+    message: EXEC_INPUT
+    languages: [go]
+    severity: WARNING
+
+  # --- SSRF (server-side request to a non-constant URL) ---
+  - id: go-ssrf
+    patterns:
+      - pattern-either:
+          - pattern: http.Get($URL)
+          - pattern: http.Post($URL, ...)
+          - pattern: http.Head($URL)
+          - pattern: $CLIENT.Get($URL)
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!["'`]).*
+      - focus-metavariable: $URL
+    message: SSRF
+    languages: [go]
+    severity: WARNING
+
+  # --- DB QUERY (high criticality) ---
+  # Taint mode focused on the query string: db.Query("...WHERE id=?", userID)
+  # keeps the tainted value in a separate arg, not in $Q, so it is not matched.
+  - id: go-db-query
+    mode: taint
+    pattern-sources:
+      - pattern: os.Args
+      - pattern: $R.URL.Query().Get(...)
+      - pattern: $R.FormValue(...)
+      - pattern: $R.PostFormValue(...)
+      - pattern: $R.Header.Get(...)
+      - pattern: os.Getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $DB.Query($Q, ...)
+              - pattern: $DB.QueryRow($Q, ...)
+              - pattern: $DB.Exec($Q, ...)
+          - focus-metavariable: $Q
+    message: DB_QUERY
+    languages: [go]
+    severity: WARNING
+
+  # --- SSTI (server-side template injection) ---
+  - id: go-ssti
+    patterns:
+      - pattern-either:
+          - pattern: template.New($N).Parse($TPL)
+          - pattern: template.Must(template.New($N).Parse($TPL))
+      - metavariable-regex:
+          metavariable: $TPL
+          regex: ^(?!["'`]).*
+      - focus-metavariable: $TPL
+    message: TEMPLATE_INJECTION
+    languages: [go]
+    severity: WARNING
+
+  # --- PATH TRAVERSAL (high criticality) ---
+  - id: go-path-traversal
+    mode: taint
+    pattern-sources:
+      - pattern: os.Args
+      - pattern: $R.URL.Query().Get(...)
+      - pattern: $R.FormValue(...)
+      - pattern: $R.PostFormValue(...)
+      - pattern: os.Getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: os.Open($X)
+              - pattern: os.ReadFile($X)
+              - pattern: os.Remove($X)
+              - pattern: ioutil.ReadFile($X)
+          - focus-metavariable: $X
+    message: PATH_TRAVERSAL
+    languages: [go]
+    severity: WARNING
+
+  # --- XSS (unsafe HTML output) ---
+  # template.HTML($X) marks a string as pre-escaped safe HTML in html/template,
+  # the same bypass role as Python's Markup()/mark_safe(). html.EscapeString
+  # is declared a sanitizer so a properly-escaped value clears the finding.
+  - id: go-xss
+    mode: taint
+    pattern-sources:
+      - pattern: $R.URL.Query().Get(...)
+      - pattern: $R.FormValue(...)
+      - pattern: $R.PostFormValue(...)
+    pattern-sanitizers:
+      - pattern: html.EscapeString(...)
+    pattern-sinks:
+      - patterns:
+          - pattern: template.HTML($X)
+          - focus-metavariable: $X
+    message: XSS_SINK
+    languages: [go]
+    severity: WARNING
+
+  # --- OPEN REDIRECT ---
+  - id: go-open-redirect
+    patterns:
+      - pattern: http.Redirect($W, $R, $TARGET, $CODE)
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!["'`]).*
+      - focus-metavariable: $TARGET
+    message: OPEN_REDIRECT
+    languages: [go]
+    severity: WARNING

@@ -189,3 +189,188 @@ rules:
     message: DB_QUERY
     languages: [javascript, typescript]
     severity: WARNING
+
+  # --- SSTI (server-side template injection) ---
+  # Presence-based, like js-ssrf: flag any template render/compile call whose
+  # TEMPLATE SOURCE (not its variables) is not a string literal.
+  - id: js-ssti
+    patterns:
+      - pattern-either:
+          - pattern: ejs.render($TPL, ...)
+          - pattern: ejs.compile($TPL, ...)
+          - pattern: Handlebars.compile($TPL)
+          - pattern: handlebars.compile($TPL)
+          - pattern: _.template($TPL)
+          - pattern: pug.render($TPL, ...)
+      - metavariable-regex:
+          metavariable: $TPL
+          regex: ^(?!["']).*
+      - focus-metavariable: $TPL
+    message: TEMPLATE_INJECTION
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- INSECURE DESERIALIZATION (high criticality) ---
+  # Taint mode: node-serialize's unserialize() and vm.runInContext-family
+  # calls execute the payload's code as a side effect of "deserializing" it.
+  - id: js-insecure-deserialization
+    mode: taint
+    pattern-sources:
+      - pattern: process.argv
+      - pattern: process.stdin
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.headers
+      - pattern: request.headers
+      - pattern: req.cookies
+      - pattern: process.env
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: serialize.unserialize($X)
+              - pattern: vm.runInContext($X, ...)
+              - pattern: vm.runInNewContext($X, ...)
+              - pattern: vm.runInThisContext($X, ...)
+          - focus-metavariable: $X
+    message: INSECURE_DESERIALIZATION
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- NOSQL INJECTION (high criticality) ---
+  # Taint mode focused on the whole query object: passing a request body
+  # straight through as a Mongoose/Mongo filter lets an attacker inject
+  # operators ($gt, $ne, $where) to bypass auth/filters.
+  - id: js-nosql-query
+    mode: taint
+    pattern-sources:
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $MODEL.find($Q)
+              - pattern: $MODEL.find($Q, ...)
+              - pattern: $MODEL.findOne($Q)
+              - pattern: $MODEL.findOne($Q, ...)
+              - pattern: $MODEL.updateOne($Q, ...)
+              - pattern: $MODEL.deleteOne($Q)
+              - pattern: $MODEL.countDocuments($Q)
+          - focus-metavariable: $Q
+    message: NOSQL_QUERY
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- PATH TRAVERSAL (high criticality) ---
+  # Taint mode: traces an actual tainted value into a filesystem sink, which
+  # is what makes traversal ("../../etc/passwd") exploitable.
+  - id: js-path-traversal
+    mode: taint
+    pattern-sources:
+      - pattern: process.argv
+      - pattern: process.stdin
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+      - pattern: req.headers
+      - pattern: request.headers
+      - pattern: req.cookies
+      - pattern: process.env
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fs.readFile($X, ...)
+              - pattern: fs.readFileSync($X, ...)
+              - pattern: fs.writeFile($X, ...)
+              - pattern: fs.unlink($X, ...)
+              - pattern: fs.createReadStream($X, ...)
+              - pattern: res.sendFile($X, ...)
+          - focus-metavariable: $X
+    message: PATH_TRAVERSAL
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- XXE (XML External Entity) ---
+  - id: js-xxe
+    mode: taint
+    pattern-sources:
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: xml2js.parseString($X, ...)
+              - pattern: libxmljs.parseXml($X, ...)
+          - focus-metavariable: $X
+    message: XXE
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- XSS (unsafe HTML output) ---
+  # DOMPurify.sanitize is declared a sanitizer so already-sanitized HTML
+  # doesn't keep tripping the rule.
+  - id: js-xss
+    mode: taint
+    pattern-sources:
+      - pattern: req.body
+      - pattern: request.body
+      - pattern: req.query
+      - pattern: req.params
+    pattern-sanitizers:
+      - pattern: DOMPurify.sanitize(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $EL.innerHTML = $X
+              - pattern: $EL.outerHTML = $X
+              - pattern: document.write($X)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: "<$EL dangerouslySetInnerHTML={{__html: $X}} />"
+          - focus-metavariable: $X
+    message: XSS_SINK
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- OPEN REDIRECT ---
+  # Presence-based, like js-ssrf: a redirect target that isn't a string
+  # literal can send victims to an attacker-controlled domain (phishing).
+  - id: js-open-redirect
+    patterns:
+      - pattern-either:
+          - pattern: res.redirect($TARGET)
+          - pattern: res.redirect($CODE, $TARGET)
+          - pattern: NextResponse.redirect($TARGET)
+          - pattern: window.location = $TARGET
+          - pattern: window.location.href = $TARGET
+          - pattern: location.assign($TARGET)
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!["']).*
+      - focus-metavariable: $TARGET
+    message: OPEN_REDIRECT
+    languages: [javascript, typescript]
+    severity: WARNING
+
+  # --- MASS ASSIGNMENT ---
+  # Presence-based: passing the whole request body into a model
+  # constructor/update lets an attacker set fields the endpoint never
+  # intended to expose (e.g. isAdmin, role).
+  - id: js-mass-assignment
+    patterns:
+      - pattern-either:
+          - pattern: new $MODEL(req.body)
+          - pattern: new $MODEL(request.body)
+          - pattern: $MODEL.create(req.body)
+          - pattern: $MODEL.findByIdAndUpdate($ID, req.body)
+          - pattern: Object.assign($TARGET, req.body)
+          - pattern: _.merge($TARGET, req.body)
+    message: MASS_ASSIGNMENT
+    languages: [javascript, typescript]
+    severity: WARNING

@@ -122,3 +122,418 @@ def test_analyze_exec_fixture_blocks():
     assert cats & {"EXEC_INPUT", "DB_QUERY"}
     assert result.should_block
     assert result.block_reason
+
+
+# --- New vulnerability categories: Python ---
+
+
+def test_analyze_python_ssti_detected():
+    content = (
+        "from flask import request, render_template_string\n"
+        "tpl = request.form.get('tpl')\n"
+        "render_template_string(tpl)\n"
+    )
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "TEMPLATE_INJECTION" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_python_insecure_deserialization_blocks():
+    content = (
+        "from flask import request\nimport pickle\n"
+        "data = request.get_json()\n"
+        "obj = pickle.loads(data)\n"
+    )
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(
+        f.technical_category == "INSECURE_DESERIALIZATION" for f in result.classified
+    )
+    assert result.should_block
+
+
+def test_analyze_python_nosql_query_blocks():
+    content = "from flask import request\nusers.find(request.json)\n"
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "NOSQL_QUERY" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_python_path_traversal_blocks():
+    content = (
+        "from flask import request\n"
+        "path = request.args.get('path')\n"
+        "open(path)\n"
+    )
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "PATH_TRAVERSAL" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_python_xxe_blocks():
+    content = "from flask import request\nimport lxml.etree\nlxml.etree.fromstring(request.data)\n"
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "XXE" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_python_xss_blocks():
+    content = (
+        "from flask import request\nfrom markupsafe import Markup\n"
+        "Markup(request.args.get('name'))\n"
+    )
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "XSS_SINK" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_python_open_redirect_detected_not_blocking():
+    content = (
+        "from flask import request, redirect\n"
+        "target = request.args.get('next')\n"
+        "redirect(target)\n"
+    )
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "OPEN_REDIRECT" for f in result.classified)
+    assert not result.should_block
+
+
+def test_analyze_python_mass_assignment_detected_not_blocking():
+    content = "from flask import request\nUser(**request.json)\n"
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "MASS_ASSIGNMENT" for f in result.classified)
+    assert not result.should_block
+
+
+# --- New vulnerability categories: JavaScript/TypeScript ---
+
+
+def test_analyze_js_ssti_detected():
+    content = "ejs.render(req.body.template);\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "TEMPLATE_INJECTION" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_js_insecure_deserialization_blocks():
+    content = "serialize.unserialize(req.body.blob);\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(
+        f.technical_category == "INSECURE_DESERIALIZATION" for f in result.classified
+    )
+    assert result.should_block
+
+
+def test_analyze_js_nosql_query_blocks():
+    content = "User.find(req.body);\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "NOSQL_QUERY" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_js_path_traversal_blocks():
+    content = "fs.readFile(req.body.path, () => {});\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "PATH_TRAVERSAL" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_js_xxe_blocks():
+    content = "xml2js.parseString(req.body.xml, () => {});\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "XXE" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_js_xss_blocks():
+    content = "el.innerHTML = req.body.html;\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "XSS_SINK" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_js_open_redirect_detected_not_blocking():
+    content = "res.redirect(req.query.next);\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "OPEN_REDIRECT" for f in result.classified)
+    assert not result.should_block
+
+
+def test_analyze_js_mass_assignment_detected_not_blocking():
+    content = "new User(req.body);\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "MASS_ASSIGNMENT" for f in result.classified)
+    assert not result.should_block
+
+
+# --- New language: Go ---
+
+
+def test_analyze_go_fixture_blocks():
+    content = (FIXTURES / "test_go.go").read_text()
+    result = analyze(InputEvent("Write", "test_go.go", content))
+    assert result.has_findings
+    cats = {f.technical_category for f in result.classified}
+    assert "HTTP_QUERY" in cats
+    assert "EXEC_INPUT" in cats
+    assert result.should_block
+
+
+def test_analyze_go_db_query_blocks():
+    content = 'db.Query(fmt.Sprintf("SELECT * FROM users WHERE name=\'%s\'", r.FormValue("name")))\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "DB_QUERY" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_go_ssrf_detected():
+    content = 'http.Get(r.URL.Query().Get("url"))\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "URL_FETCH" for f in result.classified)
+
+
+def test_analyze_go_ssti_detected():
+    content = 'template.Must(template.New("x").Parse(r.FormValue("tpl")))\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "TEMPLATE_INJECTION" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_go_path_traversal_blocks():
+    content = 'os.Open(r.FormValue("path"))\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "PATH_TRAVERSAL" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_go_xss_blocks():
+    content = 'safe := template.HTML(r.FormValue("html"))\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "XSS_SINK" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_go_open_redirect_detected_not_blocking():
+    content = 'http.Redirect(w, r, r.URL.Query().Get("next"), 302)\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "OPEN_REDIRECT" for f in result.classified)
+    assert not result.should_block
+
+
+# --- New language: Java ---
+
+
+def test_analyze_java_fixture_blocks():
+    content = (FIXTURES / "test_java.java").read_text()
+    result = analyze(InputEvent("Write", "test_java.java", content))
+    assert result.has_findings
+    cats = {f.technical_category for f in result.classified}
+    assert "HTTP_QUERY" in cats
+    assert "EXEC_INPUT" in cats
+    assert result.should_block
+
+
+def test_analyze_java_db_query_blocks():
+    content = (
+        "Statement stmt = conn.createStatement();\n"
+        'stmt.executeQuery("SELECT * FROM users WHERE name=\'" + request.getParameter("name") + "\'");\n'
+    )
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "DB_QUERY" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_java_ssrf_detected():
+    content = 'URL u = new URL(request.getParameter("url"));\n'
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "URL_FETCH" for f in result.classified)
+
+
+def test_analyze_java_ssti_detected():
+    content = "velocityEngine.evaluate(context, request.getParameter(\"tpl\"));\n"
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "TEMPLATE_INJECTION" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_java_insecure_deserialization_blocks():
+    content = "ObjectInputStream ois = new ObjectInputStream(request.getInputStream());\n"
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(
+        f.technical_category == "INSECURE_DESERIALIZATION" for f in result.classified
+    )
+    assert result.should_block
+
+
+def test_analyze_java_path_traversal_blocks():
+    content = 'File f = new File(request.getParameter("path"));\n'
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "PATH_TRAVERSAL" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_java_xxe_blocks():
+    content = "builder.parse(request.getInputStream());\n"
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "XXE" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_java_xss_blocks():
+    content = 'out.println(request.getParameter("html"));\n'
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "XSS_SINK" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_java_open_redirect_detected_not_blocking():
+    content = 'response.sendRedirect(request.getParameter("next"));\n'
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "OPEN_REDIRECT" for f in result.classified)
+    assert not result.should_block
+
+
+# --- New language: PHP ---
+
+
+def test_analyze_php_fixture_blocks():
+    content = (FIXTURES / "test_php.php").read_text()
+    result = analyze(InputEvent("Write", "test_php.php", content))
+    assert result.has_findings
+    cats = {f.technical_category for f in result.classified}
+    assert "HTTP_QUERY" in cats
+    assert "EXEC_INPUT" in cats
+    assert result.should_block
+
+
+def test_analyze_php_db_query_blocks():
+    content = "<?php\nmysqli_query($conn, \"SELECT * FROM users WHERE name='\" . $_GET['name'] . \"'\");\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "DB_QUERY" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_php_ssrf_detected():
+    content = "<?php\nfile_get_contents($_GET['url']);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "URL_FETCH" for f in result.classified)
+
+
+def test_analyze_php_ssti_detected():
+    content = '<?php\neval("?>" . $_GET[\'tpl\']);\n'
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "TEMPLATE_INJECTION" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_php_insecure_deserialization_blocks():
+    content = "<?php\n$data = unserialize($_POST['blob']);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(
+        f.technical_category == "INSECURE_DESERIALIZATION" for f in result.classified
+    )
+    assert result.should_block
+
+
+def test_analyze_php_path_traversal_blocks():
+    content = "<?php\ninclude($_GET['path']);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "PATH_TRAVERSAL" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_php_xxe_blocks():
+    content = "<?php\n$doc->loadXML($_POST['xml']);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "XXE" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_php_xss_blocks():
+    content = "<?php\necho $_GET['html'];\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "XSS_SINK" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_php_open_redirect_detected_not_blocking():
+    content = "<?php\nheader(\"Location: \" . $_GET['next']);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "OPEN_REDIRECT" for f in result.classified)
+    assert not result.should_block
+
+
+# --- New language: Ruby ---
+
+
+def test_analyze_ruby_fixture_blocks():
+    content = (FIXTURES / "test_ruby.rb").read_text()
+    result = analyze(InputEvent("Write", "test_ruby.rb", content))
+    assert result.has_findings
+    cats = {f.technical_category for f in result.classified}
+    assert "HTTP_BODY" in cats
+    assert "EXEC_INPUT" in cats
+    assert result.should_block
+
+
+def test_analyze_ruby_db_query_blocks():
+    content = "User.where(params[:filter])\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "DB_QUERY" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_ruby_ssrf_detected():
+    content = "Net::HTTP.get(params[:url])\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "URL_FETCH" for f in result.classified)
+
+
+def test_analyze_ruby_ssti_detected():
+    content = "render inline: params[:tpl]\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "TEMPLATE_INJECTION" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_ruby_insecure_deserialization_blocks():
+    content = "data = Marshal.load(params[:blob])\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(
+        f.technical_category == "INSECURE_DESERIALIZATION" for f in result.classified
+    )
+    assert result.should_block
+
+
+def test_analyze_ruby_path_traversal_blocks():
+    content = "File.open(params[:path])\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "PATH_TRAVERSAL" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_ruby_xxe_blocks():
+    content = "Nokogiri::XML(params[:xml], nil, nil, Nokogiri::XML::ParseOptions::NOENT)\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "XXE" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_ruby_xss_blocks():
+    content = "html = params[:html].html_safe\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "XSS_SINK" for f in result.classified)
+    assert result.should_block
+
+
+def test_analyze_ruby_open_redirect_detected_not_blocking():
+    content = "redirect_to params[:next]\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "OPEN_REDIRECT" for f in result.classified)
+    assert not result.should_block
+
+
+def test_analyze_ruby_mass_assignment_detected_not_blocking():
+    content = "User.new(params)\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "MASS_ASSIGNMENT" for f in result.classified)
+    assert not result.should_block

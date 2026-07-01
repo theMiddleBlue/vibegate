@@ -1,0 +1,219 @@
+rules:
+  # --- CLI ---
+  - id: java-cli-arg
+    pattern: args[...]
+    message: CLI_ARG
+    languages: [java]
+    severity: INFO
+
+  # --- STDIN ---
+  - id: java-stdin
+    pattern-either:
+      - pattern: new Scanner(System.in)
+      - pattern: new BufferedReader(new InputStreamReader(System.in))
+    message: STDIN
+    languages: [java]
+    severity: INFO
+
+  # --- HTTP Body / Params ---
+  - id: java-http-body
+    pattern-either:
+      - pattern: $REQ.getInputStream()
+      - pattern: $REQ.getReader()
+    message: HTTP_BODY
+    languages: [java]
+    severity: INFO
+
+  - id: java-http-query
+    pattern-either:
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getParameterValues(...)
+    message: HTTP_QUERY
+    languages: [java]
+    severity: INFO
+
+  - id: java-http-header
+    pattern: $REQ.getHeader(...)
+    message: HTTP_HEADER
+    languages: [java]
+    severity: INFO
+
+  # --- ENV VAR ---
+  - id: java-env-var
+    pattern-either:
+      - pattern: System.getenv(...)
+      - pattern: System.getProperty(...)
+    message: ENV_VAR
+    languages: [java]
+    severity: INFO
+
+  # --- FILE PATH from input ---
+  - id: java-file-path-input
+    patterns:
+      - pattern-either:
+          - pattern: new File($X)
+          - pattern: Paths.get($X)
+      - pattern-not: new File("...")
+      - pattern-not: Paths.get("...")
+    message: FILE_PATH
+    languages: [java]
+    severity: INFO
+
+  # --- EXEC INPUT (high criticality) ---
+  - id: java-exec-input
+    mode: taint
+    pattern-sources:
+      - pattern: args
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+      - pattern: System.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: Runtime.getRuntime().exec($X)
+              - pattern: new ProcessBuilder($X)
+          - focus-metavariable: $X
+    message: EXEC_INPUT
+    languages: [java]
+    severity: WARNING
+
+  # --- SSRF (server-side request to a non-constant URL) ---
+  - id: java-ssrf
+    patterns:
+      - pattern-either:
+          - pattern: new URL($URL)
+          - pattern: new URI($URL)
+          - pattern: restTemplate.getForObject($URL, ...)
+          - pattern: $CLIENT.execute(new HttpGet($URL))
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!["']).*
+      - focus-metavariable: $URL
+    message: SSRF
+    languages: [java]
+    severity: WARNING
+
+  # --- DB QUERY (high criticality) ---
+  # Taint mode focused on the query string: a PreparedStatement with "?"
+  # placeholders and separately-bound params does not match, since the
+  # tainted value never flows into $Q.
+  - id: java-db-query
+    mode: taint
+    pattern-sources:
+      - pattern: args
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+      - pattern: System.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $STMT.executeQuery($Q)
+              - pattern: $STMT.executeUpdate($Q)
+              - pattern: $STMT.execute($Q)
+          - focus-metavariable: $Q
+    message: DB_QUERY
+    languages: [java]
+    severity: WARNING
+
+  # --- SSTI (server-side template injection) ---
+  - id: java-ssti
+    patterns:
+      - pattern-either:
+          - pattern: new StringTemplate($TPL)
+          - pattern: velocityEngine.evaluate(..., $TPL)
+      - metavariable-regex:
+          metavariable: $TPL
+          regex: ^(?!["']).*
+      - focus-metavariable: $TPL
+    message: TEMPLATE_INJECTION
+    languages: [java]
+    severity: WARNING
+
+  # --- INSECURE DESERIALIZATION (high criticality) ---
+  # ObjectInputStream.readObject() on attacker-controlled bytes is the
+  # classic Java deserialization RCE gadget-chain vector.
+  - id: java-insecure-deserialization
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getInputStream()
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+    pattern-sinks:
+      - patterns:
+          - pattern: new ObjectInputStream($X)
+          - focus-metavariable: $X
+    message: INSECURE_DESERIALIZATION
+    languages: [java]
+    severity: WARNING
+
+  # --- PATH TRAVERSAL (high criticality) ---
+  - id: java-path-traversal
+    mode: taint
+    pattern-sources:
+      - pattern: args
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+      - pattern: System.getenv(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new File($X)
+              - pattern: new FileInputStream($X)
+              - pattern: new FileOutputStream($X)
+              - pattern: Files.delete(Paths.get($X))
+          - focus-metavariable: $X
+    message: PATH_TRAVERSAL
+    languages: [java]
+    severity: WARNING
+
+  # --- XXE (XML External Entity) ---
+  # DocumentBuilder/SAXParser resolve external entities by default unless the
+  # factory explicitly disables DOCTYPE/external-entity processing.
+  - id: java-xxe
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getInputStream()
+      - pattern: $REQ.getParameter(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $BUILDER.parse($X)
+              - pattern: $PARSER.parse($X, ...)
+          - focus-metavariable: $X
+    message: XXE
+    languages: [java]
+    severity: WARNING
+
+  # --- XSS (unsafe HTML output) ---
+  # StringEscapeUtils.escapeHtml4 is declared a sanitizer so correctly-escaped
+  # output doesn't keep tripping the rule.
+  - id: java-xss
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+    pattern-sanitizers:
+      - pattern: StringEscapeUtils.escapeHtml4(...)
+      - pattern: HtmlUtils.htmlEscape(...)
+    pattern-sinks:
+      - patterns:
+          - pattern: $OUT.println($X)
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: $OUT.print($X)
+          - focus-metavariable: $X
+    message: XSS_SINK
+    languages: [java]
+    severity: WARNING
+
+  # --- OPEN REDIRECT ---
+  - id: java-open-redirect
+    patterns:
+      - pattern: $RESP.sendRedirect($TARGET)
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!["']).*
+      - focus-metavariable: $TARGET
+    message: OPEN_REDIRECT
+    languages: [java]
+    severity: WARNING

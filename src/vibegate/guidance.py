@@ -85,6 +85,65 @@ TECHNICAL_RISKS = {
         "risks": ["Credential stuffing", "Brute force", "Log exposure"],
         "severity": "HIGH",
     },
+    "TEMPLATE_INJECTION": {
+        "risks": [
+            "Server-Side Template Injection",
+            "Remote Code Execution",
+            "Sandbox escape",
+        ],
+        "severity": "CRITICAL",
+    },
+    "INSECURE_DESERIALIZATION": {
+        "risks": [
+            "Arbitrary object instantiation",
+            "Remote Code Execution",
+            "Denial of Service",
+        ],
+        "severity": "CRITICAL",
+    },
+    "NOSQL_QUERY": {
+        "risks": [
+            "NoSQL operator injection",
+            "Authentication bypass",
+            "Data exfiltration",
+        ],
+        "severity": "CRITICAL",
+    },
+    "PATH_TRAVERSAL": {
+        "risks": [
+            "Arbitrary file read/write",
+            "Directory traversal",
+            "Remote Code Execution via file overwrite",
+        ],
+        "severity": "CRITICAL",
+    },
+    "XXE": {
+        "risks": [
+            "Local file disclosure",
+            "SSRF via external entity",
+            "Denial of Service (billion laughs)",
+        ],
+        "severity": "CRITICAL",
+    },
+    "XSS_SINK": {
+        "risks": [
+            "Stored/Reflected Cross-Site Scripting",
+            "Session hijacking",
+            "Account takeover",
+        ],
+        "severity": "CRITICAL",
+    },
+    "OPEN_REDIRECT": {
+        "risks": ["Phishing via a trusted domain", "OAuth token theft"],
+        "severity": "HIGH",
+    },
+    "MASS_ASSIGNMENT": {
+        "risks": [
+            "Privilege escalation via unexpected fields",
+            "Data integrity bypass",
+        ],
+        "severity": "HIGH",
+    },
 }
 
 # Semantic type -> validation, sanitization, specific risks, regex, threat model.
@@ -495,6 +554,125 @@ SEMANTIC_GUIDANCE = {
             "regex-validatable; never store the raw sample — store only a protected, non-reversible "
             "template, add liveness detection to resist spoofed/presented artifacts, and treat the "
             "data as GDPR Art.9 special category with strict consent and access controls."
+        ),
+    },
+    "HTML_CONTENT": {
+        "validation": "Treat as untrusted; never assume it is pre-sanitized HTML",
+        "validation_regex": "",
+        "sanitization": (
+            "Rely on the framework's default autoescaping (Jinja2/Django templates escape by "
+            "default) or run it through an allowlist HTML sanitizer (bleach, DOMPurify) before "
+            "rendering it as raw HTML"
+        ),
+        "specific_risks": [
+            "Stored/Reflected XSS",
+            "Session hijacking via stolen cookies",
+        ],
+        "threat_explanation": (
+            "Wrapping user input in Markup()/mark_safe() (Python) or assigning it to innerHTML/"
+            "dangerouslySetInnerHTML (JS) tells the framework to skip escaping and render the "
+            "value as literal HTML. If any part of that value is attacker-controlled, they can "
+            "inject <script> tags or event handlers that execute in the victim's browser session, "
+            "stealing cookies/tokens or performing actions as the victim. There is no regex that "
+            "makes arbitrary HTML safe — the only sound approach is output-escaping (never marking "
+            "it 'safe' in the first place) or running it through a dedicated allowlist sanitizer "
+            "that strips scripts and dangerous attributes."
+        ),
+    },
+    "TEMPLATE_STRING": {
+        "validation": (
+            "Never accept the template source itself from user input — only user-supplied "
+            "variables that get interpolated into a fixed, developer-authored template"
+        ),
+        "validation_regex": "",
+        "sanitization": (
+            "Use a sandboxed template environment (Jinja2 SandboxedEnvironment) if a dynamic "
+            "template is unavoidable, and never let it access filesystem/OS builtins"
+        ),
+        "specific_risks": [
+            "Server-Side Template Injection",
+            "Remote Code Execution",
+        ],
+        "threat_explanation": (
+            "Template engines like Jinja2, Handlebars, and EJS compile their input into executable "
+            "code paths (attribute/method access, filters, sometimes arbitrary expressions). If the "
+            "template SOURCE — not just a variable rendered inside a safe, fixed template — comes "
+            "from user input, an attacker can write template syntax that reaches the underlying "
+            "interpreter and executes arbitrary code (e.g. Jinja2's "
+            "{{ self.__init__.__globals__ }} gadget chain). This is a fundamentally different bug "
+            "from XSS: it runs server-side. Never treat a template string as user data; only its "
+            "variables should be."
+        ),
+    },
+    "SERIALIZED_DATA": {
+        "validation": (
+            "Do not deserialize untrusted data with a format that supports arbitrary object "
+            "reconstruction (pickle, marshal, unsafe YAML, Node's node-serialize)"
+        ),
+        "validation_regex": "",
+        "sanitization": (
+            "Use a data-only format (JSON) with a schema validator (pydantic, zod, jsonschema) "
+            "instead of a language-native serializer"
+        ),
+        "specific_risks": [
+            "Remote Code Execution on deserialization",
+            "Denial of Service via crafted payloads",
+        ],
+        "threat_explanation": (
+            "Formats like Python pickle/marshal and unsafe YAML loaders don't just decode data — "
+            "they reconstruct arbitrary objects, which can trigger constructor- or "
+            "__reduce__-style code execution the moment the payload is loaded, before your code "
+            "even inspects it. The same class of bug exists in Node's node-serialize and Java's "
+            "ObjectInputStream. There is no way to sanitize a serialized blob after the fact — the "
+            "deserialization call itself is the vulnerability. Switch to a data-only format (JSON) "
+            "validated against an explicit schema, or use the format's documented safe mode "
+            "(yaml.safe_load) which only ever produces plain data types."
+        ),
+    },
+    "NOSQL_FILTER": {
+        "validation": (
+            "Only accept known field names/operators from an explicit allowlist — never pass the "
+            "raw request body as a query filter"
+        ),
+        "validation_regex": "",
+        "sanitization": (
+            "Build the filter object field-by-field from validated scalars; strip/reject any key "
+            "starting with '$' (MongoDB operator syntax)"
+        ),
+        "specific_risks": [
+            "NoSQL operator injection",
+            "Authentication bypass",
+        ],
+        "threat_explanation": (
+            "MongoDB (and similar document stores) interpret keys like $gt, $ne, $where inside a "
+            "query object as operators, not literal values. If a request body is passed straight "
+            "through as the filter — e.g. db.users.find(request.json) — an attacker can send "
+            '{"password": {"$ne": null}} to match every document, bypassing an authentication '
+            "check entirely. This is the NoSQL equivalent of SQL injection but involves no string "
+            "concatenation, so it's easy to miss in review. Never pass a raw JSON body as a query "
+            "filter; construct the filter from named, validated fields instead."
+        ),
+    },
+    "XML_PAYLOAD": {
+        "validation": "Disable external entity resolution before parsing any untrusted XML",
+        "validation_regex": "",
+        "sanitization": (
+            "Use defusedxml (Python) or explicitly disable DTDs/external entities "
+            "(lxml resolve_entities=False, libxmljs noent: false) instead of the library default"
+        ),
+        "specific_risks": [
+            "Local file disclosure via external entity",
+            "SSRF via external entity",
+            "Denial of Service (entity expansion)",
+        ],
+        "threat_explanation": (
+            "Many XML parsers resolve <!ENTITY> declarations by default, including external ones "
+            "that read a local file or make an outbound request (file:///etc/passwd, "
+            "http://internal-service/). A single crafted <!DOCTYPE> block in an otherwise normal-"
+            "looking XML document can exfiltrate local files back into the parsed output or turn "
+            "your parser into an SSRF proxy. A nested entity-expansion payload ('billion laughs') "
+            "can also exhaust memory/CPU. Always parse untrusted XML with external entities and "
+            "DTD processing disabled — don't rely on the library's default configuration."
         ),
     },
 }

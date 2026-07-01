@@ -52,10 +52,10 @@ analysis, so it never makes things up and never costs you tokens.
               │                     │                     │
               ▼                     ▼                     ▼
     ┌────────────────────┐ ┌────────────────────┐ ┌──────────────────────┐
-    │  No risky input    │ │   Risky input,     │ │   Risky input going  │
-    │  found             │ │   but lower risk   │ │   into a DB query or │
-    │                    │ │   (e.g. shown in   │ │   shell command,     │
-    │                    │ │   an HTTP reply)   │ │   not sanitized      │
+    │  No risky input    │ │   Risky input,     │ │  Risky input reaches │
+    │  found             │ │   but lower risk   │ │  a critical sink     │
+    │                    │ │   (e.g. shown in   │ │  (SQL/command/RCE,   │
+    │                    │ │   an HTTP reply)   │ │  template injection) │
     └─────────┬──────────┘ └─────────┬──────────┘ └───────────┬──────────┘
               │                      │                        │
               ▼                      ▼                        ▼
@@ -67,8 +67,9 @@ analysis, so it never makes things up and never costs you tokens.
 ```
 
 In short: safe code passes through untouched, risky-but-survivable code gets
-saved with a warning attached, and code that's one step away from a SQL
-injection or a command injection gets stopped before it ever reaches disk.
+saved with a warning attached, and code that's one step away from things like
+SQL injection, command injection, or remote code execution gets stopped
+before it ever reaches disk.
 
 If VibeGate itself hits an unexpected error, it always lets the write through
 — a bug in the hook should never be the reason your work gets blocked.
@@ -76,12 +77,17 @@ If VibeGate itself hits an unexpected error, it always lets the write through
 | What VibeGate sees | What happens |
 |---|---|
 | No user input, or a language it doesn't support yet | File saves normally, nothing shown |
-| User input found, but the risk is moderate | File saves, terminal shows a warning + guidance |
-| User input flows unsanitized into a database query or shell command | File is **not saved** — Claude Code is told why |
+| User input found, but the risk is moderate (e.g. open redirect, mass assignment) | File saves, terminal shows a warning + guidance |
+| User input flows unsanitized into a critical sink (SQL/NoSQL query, shell command, template engine, deserializer, XML parser, file path, or raw HTML output) | File is **not saved** — Claude Code is told why |
 
-Today VibeGate understands **Python** and **JavaScript/TypeScript**, and
-plugs into **Claude Code** and **Codex**. More languages and tools can be
-added without touching the core logic.
+The full, current list of blocking categories lives in
+`formatter.BLOCKING_CATEGORIES` — that's the source of truth if this table
+ever drifts.
+
+Today VibeGate understands **Python**, **JavaScript/TypeScript**, **Go**,
+**Java**, **PHP**, and **Ruby**, and plugs into **Claude Code** and
+**Codex**. More languages and tools can be added without touching the core
+logic.
 
 ## Getting started
 
@@ -112,6 +118,24 @@ VibeGate figures out which host it's talking to in this order: an explicit
 `--host <name>` flag, then the `VIBEGATE_HOST` environment variable, then
 auto-detection from the incoming payload, falling back to `claude_code`.
 
+## Suppressing a finding
+
+If VibeGate flags something you've deliberately decided is safe, add a
+`vibegate-ignore` comment on the same line — it works with any comment
+syntax (`#`, `//`, …), since VibeGate just looks for the text:
+
+```python
+query = f"SELECT * FROM users WHERE id = {user_id}"  # vibegate-ignore
+```
+
+To suppress only specific categories instead of everything on that line,
+list them after a colon (matches either the technical category or the
+semantic type, comma-separated, case-insensitive):
+
+```python
+query = f"SELECT * FROM users WHERE id = {user_id}"  # vibegate-ignore: DB_QUERY
+```
+
 ## How the code is organized
 
 ```
@@ -124,7 +148,8 @@ src/vibegate/
 ├── guidance.py         # the static risk/remediation write-ups
 ├── formatter.py        # turns results into a terminal report + host context
 ├── adapters/           # base, claude_code, codex + a small registry
-└── rules/              # Semgrep rules (Python, JS/TS, and a generic placeholder)
+└── rules/              # Semgrep rules — one file per language (Python, JS/TS,
+                         # Go, Java, PHP, Ruby) plus a generic placeholder
 ```
 
 The pipeline itself (`core.py`) never talks directly to a specific host — all
@@ -166,3 +191,10 @@ python3 -c 'import json; print(json.dumps({"tool_name":"Write","tool_input":{"fi
 - Semgrep's free tier returns `"requires login"` instead of the actual
   matched line, so the classifier reconstructs the snippet itself from the
   file content using line numbers.
+- For `Edit`/`MultiEdit`, the `claude_code` adapter reconstructs the full
+  post-edit file from disk so a tainted source and a sink introduced by
+  *separate* edits are still connected — but only findings on the lines that
+  edit actually touched are reported. If a sink already exists and a later
+  edit only adds the tainted source that reaches it, that won't be caught
+  (the sink's line wasn't part of the new edit). This reconstruction is
+  Claude-Code-specific; the `codex` adapter doesn't do it yet.

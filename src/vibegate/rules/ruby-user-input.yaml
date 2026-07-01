@@ -1,0 +1,230 @@
+rules:
+  # --- CLI ---
+  - id: ruby-cli-arg
+    pattern: ARGV[...]
+    message: CLI_ARG
+    languages: [ruby]
+    severity: INFO
+
+  # --- STDIN ---
+  - id: ruby-stdin
+    pattern-either:
+      - pattern: gets
+      - pattern: STDIN.gets
+      - pattern: STDIN.read
+    message: STDIN
+    languages: [ruby]
+    severity: INFO
+
+  # --- HTTP Body / Query / Headers (Rails-style params) ---
+  - id: ruby-http-body
+    pattern-either:
+      - pattern: params[...]
+      - pattern: request.body.read
+    message: HTTP_BODY
+    languages: [ruby]
+    severity: INFO
+
+  - id: ruby-http-query
+    pattern: request.query_parameters[...]
+    message: HTTP_QUERY
+    languages: [ruby]
+    severity: INFO
+
+  - id: ruby-http-header
+    pattern: request.headers[...]
+    message: HTTP_HEADER
+    languages: [ruby]
+    severity: INFO
+
+  # --- ENV VAR ---
+  - id: ruby-env-var
+    pattern: ENV[...]
+    message: ENV_VAR
+    languages: [ruby]
+    severity: INFO
+
+  # --- FILE PATH from input ---
+  - id: ruby-file-path-input
+    patterns:
+      - pattern-either:
+          - pattern: File.open($X)
+          - pattern: File.read($X)
+      - pattern-not: File.open("...")
+      - pattern-not: File.read("...")
+    message: FILE_PATH
+    languages: [ruby]
+    severity: INFO
+
+  # --- EXEC INPUT (high criticality) ---
+  - id: ruby-exec-input
+    mode: taint
+    pattern-sources:
+      - pattern: ARGV
+      - pattern: gets
+      - pattern: params[...]
+      - pattern: request.headers[...]
+      - pattern: ENV[...]
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: system($X)
+              - pattern: "`$X`"
+              - pattern: Kernel.exec($X)
+              - pattern: IO.popen($X)
+          - focus-metavariable: $X
+    message: EXEC_INPUT
+    languages: [ruby]
+    severity: WARNING
+
+  # --- SSRF (server-side request to a non-constant URL) ---
+  - id: ruby-ssrf
+    patterns:
+      - pattern-either:
+          - pattern: Net::HTTP.get($URL)
+          - pattern: open($URL)
+          - pattern: URI.open($URL)
+      - metavariable-regex:
+          metavariable: $URL
+          regex: ^(?!["']).*
+      - focus-metavariable: $URL
+    message: SSRF
+    languages: [ruby]
+    severity: WARNING
+
+  # --- DB QUERY (high criticality) ---
+  # Taint mode focused on the query string: ActiveRecord's
+  # where("name = ?", name) keeps the tainted value out of $Q (it's a
+  # separate bind argument), so it is not matched — only string
+  # interpolation/concatenation into the query text is blocked.
+  - id: ruby-db-query
+    mode: taint
+    pattern-sources:
+      - pattern: params[...]
+      - pattern: request.headers[...]
+      - pattern: ARGV
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $MODEL.where($Q)
+              - pattern: $CONN.execute($Q)
+          - focus-metavariable: $Q
+    message: DB_QUERY
+    languages: [ruby]
+    severity: WARNING
+
+  # --- SSTI (server-side template injection) ---
+  # `render inline:` is the canonical Rails SSTI gadget — it compiles its
+  # argument as ERB (or the configured handler) source, not just data.
+  - id: ruby-ssti
+    patterns:
+      - pattern: 'render inline: $TPL'
+      - metavariable-regex:
+          metavariable: $TPL
+          regex: ^(?!["']).*
+      - focus-metavariable: $TPL
+    message: TEMPLATE_INJECTION
+    languages: [ruby]
+    severity: WARNING
+
+  # --- INSECURE DESERIALIZATION (high criticality) ---
+  # Marshal.load and YAML.load (non-safe) can instantiate arbitrary objects
+  # on load; YAML.safe_load is not matched.
+  - id: ruby-insecure-deserialization
+    mode: taint
+    pattern-sources:
+      - pattern: params[...]
+      - pattern: request.body.read
+      - pattern: ARGV
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: Marshal.load($X)
+              - pattern: YAML.load($X)
+          - focus-metavariable: $X
+    message: INSECURE_DESERIALIZATION
+    languages: [ruby]
+    severity: WARNING
+
+  # --- PATH TRAVERSAL (high criticality) ---
+  - id: ruby-path-traversal
+    mode: taint
+    pattern-sources:
+      - pattern: params[...]
+      - pattern: request.headers[...]
+      - pattern: ARGV
+      - pattern: ENV[...]
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: File.open($X)
+              - pattern: File.read($X)
+              - pattern: File.delete($X)
+              - pattern: send_file($X)
+          - focus-metavariable: $X
+    message: PATH_TRAVERSAL
+    languages: [ruby]
+    severity: WARNING
+
+  # --- XXE (XML External Entity) ---
+  # Nokogiri resolves external entities when NOENT is set explicitly; the
+  # default parse without it is generally safe, but flagging any tainted
+  # parse call surfaces the setting for review.
+  - id: ruby-xxe
+    mode: taint
+    pattern-sources:
+      - pattern: params[...]
+      - pattern: request.body.read
+    pattern-sinks:
+      - patterns:
+          - pattern: Nokogiri::XML($X, nil, nil, Nokogiri::XML::ParseOptions::NOENT)
+          - focus-metavariable: $X
+    message: XXE
+    languages: [ruby]
+    severity: WARNING
+
+  # --- XSS (unsafe HTML output) ---
+  # .html_safe and raw() are Rails' explicit "skip autoescaping" bypasses —
+  # the same bypass role as Python's Markup()/mark_safe().
+  - id: ruby-xss
+    mode: taint
+    pattern-sources:
+      - pattern: params[...]
+      - pattern: request.headers[...]
+    pattern-sinks:
+      - patterns:
+          - pattern: $X.html_safe
+          - focus-metavariable: $X
+      - patterns:
+          - pattern: raw($X)
+          - focus-metavariable: $X
+    message: XSS_SINK
+    languages: [ruby]
+    severity: WARNING
+
+  # --- OPEN REDIRECT ---
+  - id: ruby-open-redirect
+    patterns:
+      - pattern: redirect_to $TARGET
+      - metavariable-regex:
+          metavariable: $TARGET
+          regex: ^(?!["']).*
+      - focus-metavariable: $TARGET
+    message: OPEN_REDIRECT
+    languages: [ruby]
+    severity: WARNING
+
+  # --- MASS ASSIGNMENT ---
+  # Passing the raw params hash straight into a model constructor/update
+  # without strong-parameters filtering lets an attacker set fields the
+  # endpoint never intended to expose (e.g. admin, role).
+  - id: ruby-mass-assignment
+    patterns:
+      - pattern-either:
+          - pattern: $MODEL.new(params)
+          - pattern: $MODEL.create(params)
+          - pattern: $RECORD.update(params)
+          - pattern: $RECORD.update_attributes(params)
+    message: MASS_ASSIGNMENT
+    languages: [ruby]
+    severity: WARNING
