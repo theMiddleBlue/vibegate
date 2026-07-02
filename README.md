@@ -137,23 +137,24 @@ exploit.
 
 ## See it in action
 
-Here is VibeGate working inside Claude Code, while it is building a real app.
-
-In this first example, Claude Code is writing a tool that fetches an RSS
-feed. VibeGate notices that the feed address comes from the user, and warns
-that this could be used to attack internal servers (this is called SSRF).
-Claude Code reads the warning and fixes the code right away, before moving
-on to the next file.
+Here is a real recording of Claude Code building an RSS feed reader app from
+scratch, with VibeGate running the whole time. Watch for the moments where
+Claude Code stops and explicitly says what VibeGate flagged, and why, before
+continuing — including a real SSRF risk in the feed-fetching code that it
+fixes on the spot.
 
 <p align="center">
-  <img src="assets/vibegate_action_1.png" alt="VibeGate warning Claude Code about an SSRF risk in a feed fetching tool, and Claude Code fixing it" width="720">
+  <video src="assets/vibegate_action_3.mp4" controls width="720">
+    Your browser doesn't support inline video. <a href="assets/vibegate_action_3.mp4">Download the recording</a> instead.
+  </video>
 </p>
 
-In this second example, Claude Code is building an app that lets people
-upload a photo and see its details. VibeGate notices that the file name and
-other file details will later be shown on screen, and warns that this could
-be used to inject harmful code into the page (this is called XSS). Claude
-Code adjusts the code so that information is shown safely.
+Here is a second example, as a still image: Claude Code is building an app
+that lets people upload a photo and see its details. VibeGate notices that
+the file name and other file details will later be shown on screen, and
+warns that this could be used to inject harmful code into the page (this is
+called XSS). Claude Code adjusts the code so that information is shown
+safely.
 
 <p align="center">
   <img src="assets/vibegate_action_2.png" alt="VibeGate warning Claude Code about an XSS risk from uploaded file details, and Claude Code fixing it" width="720">
