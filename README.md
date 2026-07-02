@@ -94,6 +94,12 @@ Today VibeGate understands **Python**, **JavaScript/TypeScript**, **Go**,
 **Codex**. More languages and tools can be added without touching the core
 logic.
 
+It also checks GitHub Actions workflow files for two common CI/CD
+supply-chain mistakes: actions pinned to a mutable tag (`@v4`) instead of a
+commit SHA, and the unsafe `pull_request_target` trigger. Both warn rather
+than block, since they're hardening checks rather than proof of an active
+exploit.
+
 ## See it in action
 
 Here is VibeGate working inside Claude Code, while it is building a real app.

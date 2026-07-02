@@ -131,6 +131,9 @@ RULE_TO_TECHNICAL = {
     "ruby-open-redirect": "OPEN_REDIRECT",
     "ruby-mass-assignment": "MASS_ASSIGNMENT",
     "ruby-file-upload": "FILE_UPLOAD",
+    # CI/CD config hardening (not tied to a programming language)
+    "unpinned-github-action": "UNPINNED_CI_ACTION",
+    "github-actions-pull-request-target": "UNSAFE_PR_TRIGGER",
 }
 
 # Rules whose finding is intrinsically about a sink consuming a specific kind
@@ -189,6 +192,8 @@ RULE_FORCED_SEMANTIC = {
     "ruby-open-redirect": "REDIRECT_URL",
     "ruby-mass-assignment": "JSON_PAYLOAD",
     "ruby-file-upload": "FILE_NAME",
+    "unpinned-github-action": "UNPINNED_ACTION_REF",
+    "github-actions-pull-request-target": "PULL_REQUEST_TARGET_TRIGGER",
 }
 
 # --- Stage B: keyword -> semantic type --------------------------------------

@@ -152,6 +152,20 @@ TECHNICAL_RISKS = {
         ],
         "severity": "CRITICAL",
     },
+    "UNPINNED_CI_ACTION": {
+        "risks": [
+            "Supply-chain compromise via a repointed tag",
+            "Malicious code running with repo secrets/permissions",
+        ],
+        "severity": "HIGH",
+    },
+    "UNSAFE_PR_TRIGGER": {
+        "risks": [
+            "Secret exfiltration via a malicious fork PR",
+            "Arbitrary code execution with the base repo's token",
+        ],
+        "severity": "HIGH",
+    },
 }
 
 # Semantic type -> validation, sanitization, specific risks, regex, threat model.
@@ -681,6 +695,59 @@ SEMANTIC_GUIDANCE = {
             "your parser into an SSRF proxy. A nested entity-expansion payload ('billion laughs') "
             "can also exhaust memory/CPU. Always parse untrusted XML with external entities and "
             "DTD processing disabled — don't rely on the library's default configuration."
+        ),
+    },
+    "UNPINNED_ACTION_REF": {
+        "validation": "The ref after @ must be a full 40-character commit SHA, not a branch or tag name",
+        "validation_regex": r"^[0-9a-fA-F]{40}$",
+        "sanitization": (
+            "Resolve the tag to its current commit SHA (e.g. via the GitHub API or "
+            "`gh api repos/OWNER/REPO/commits/TAG --jq .sha`) and pin to that SHA, "
+            "with the human-readable version as a trailing comment"
+        ),
+        "specific_risks": [
+            "Supply-chain compromise via a repointed tag",
+            "No audit trail of what code actually ran",
+        ],
+        "threat_explanation": (
+            "A tag like @v4 or @main is a mutable pointer — whoever controls that repository (or "
+            "gains access to the maintainer's account) can repoint it to different code at any "
+            "time, and every workflow using that tag will silently start running it, with your "
+            "repository's secrets and permissions. This already happened in the wild (the "
+            "tj-actions/changed-files incident, March 2025) and is the exact mechanism GitHub's own "
+            "security hardening guides warn about. A commit SHA is immutable, so pinning to one "
+            "means the code that runs is exactly the code you reviewed. Use Dependabot's "
+            "github-actions ecosystem to keep pins current via reviewable PRs instead of losing the "
+            "update path entirely."
+        ),
+    },
+    "PULL_REQUEST_TARGET_TRIGGER": {
+        "validation": (
+            "Confirm whether this workflow checks out or executes any code from the pull request "
+            "itself (not just the base branch)"
+        ),
+        "validation_regex": "",
+        "sanitization": (
+            "If you don't need to check out the PR's code, switch to `pull_request` instead — it "
+            "runs with a read-only token and no access to secrets for fork PRs. If you must "
+            "check out and build the PR's code (e.g. to post a preview comment), keep secrets "
+            "out of that job entirely, or split the untrusted build into a `pull_request` job and "
+            "only hand its output to a separate, minimal `pull_request_target` job"
+        ),
+        "specific_risks": [
+            "Secret exfiltration via a malicious fork PR",
+            "Arbitrary code execution with the base repo's write token",
+        ],
+        "threat_explanation": (
+            "Unlike `pull_request`, the `pull_request_target` trigger runs with the base "
+            "repository's GITHUB_TOKEN and full access to repository secrets, even when the PR "
+            "comes from an untrusted fork. That's fine on its own. It becomes a critical bypass the "
+            "moment the workflow also checks out the PR's head commit (e.g. "
+            "`ref: ${{ github.event.pull_request.head.sha }}`) and then builds or runs that code — "
+            "an attacker's PR is now executing with your repo's secrets and write access. This "
+            "exact pattern ('pwn request') has been used to steal secrets and push malicious "
+            "commits in numerous real incidents. If this workflow doesn't check out or execute the "
+            "PR's own code, this warning doesn't apply and can be suppressed."
         ),
     },
 }

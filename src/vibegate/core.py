@@ -32,6 +32,10 @@ EXT_TO_LANGUAGE = {
     ".java": "java",
     ".php": "php",
     ".rb": "ruby",
+    # Not a programming language — covers CI/CD config hardening checks
+    # (e.g. unpinned GitHub Actions) via Semgrep's generic/regex mode.
+    ".yml": "yaml",
+    ".yaml": "yaml",
 }
 
 

@@ -603,3 +603,31 @@ def test_analyze_ruby_file_upload_blocks():
     result = analyze(InputEvent("Write", "x.rb", content))
     assert any(f.technical_category == "FILE_UPLOAD" for f in result.classified)
     assert result.should_block
+
+
+# --- CI/CD config hardening (GitHub Actions) ---
+
+
+def test_analyze_unpinned_github_action_detected_not_blocking():
+    content = "on: [push]\njobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n"
+    result = analyze(InputEvent("Write", "ci.yml", content))
+    assert any(f.technical_category == "UNPINNED_CI_ACTION" for f in result.classified)
+    assert not result.should_block
+
+
+def test_analyze_pinned_github_action_not_flagged():
+    content = (
+        "on: [push]\njobs:\n  test:\n    steps:\n"
+        "      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0\n"
+    )
+    result = analyze(InputEvent("Write", "ci.yml", content))
+    assert not any(
+        f.technical_category == "UNPINNED_CI_ACTION" for f in result.classified
+    )
+
+
+def test_analyze_pull_request_target_detected_not_blocking():
+    content = "on:\n  pull_request_target:\n    branches: [main]\njobs:\n  build:\n    steps: []\n"
+    result = analyze(InputEvent("Write", "ci.yml", content))
+    assert any(f.technical_category == "UNSAFE_PR_TRIGGER" for f in result.classified)
+    assert not result.should_block
