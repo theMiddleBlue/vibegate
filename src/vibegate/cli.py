@@ -5,7 +5,7 @@ One entry point, four subcommands:
     vibegate run [--host HOST]   # the hook itself: reads a tool event on stdin
     vibegate on                  # enable the hook in ./.claude/settings.local.json
     vibegate off                 # disable it (idempotent)
-    vibegate status              # report whether it is enabled in this project
+    vibegate status [N]          # report whether enabled + last N activity events
 
 ``on``/``off`` operate on the CURRENT project's personal settings
 (``.claude/settings.local.json``), so activation is per-project and reversible
@@ -19,12 +19,31 @@ import json
 import sys
 from pathlib import Path
 
+from . import activity_log
+from .colors import BOLD, GRAY, GREEN, MINT, RED, RESET, YELLOW
 from .hook import main as hook_main
 
 MATCHER = "Write|Edit|MultiEdit"
 HOOK_COMMAND = "vibegate run --host claude_code"
 STATUS_MESSAGE = "VibeGate: analyzing user-input patterns..."
 SETTINGS_REL = Path(".claude") / "settings.local.json"
+DEFAULT_LOG_LIMIT = 10
+
+# Block-letter "VIBEGATE", 5 rows tall — verified to align before landing here.
+_BANNER_ROWS = (
+    "█   █ █████ ████  █████  ████  ███  █████ █████ ",
+    "█   █   █   █   █ █     █     █   █   █   █     ",
+    "█   █   █   ████  ████  █  ██ █████   █   ████  ",
+    " █ █    █   █   █ █     █   █ █   █   █   █     ",
+    "  █   █████ ████  █████  ████ █   █   █   █████ ",
+)
+
+
+def _print_banner() -> None:
+    print()
+    for row in _BANNER_ROWS:
+        print(f"{BOLD}{MINT}{row}{RESET}")
+    print(f"{GRAY}  pre-write security for AI coding agents{RESET}\n")
 
 
 def _settings_path() -> Path:
@@ -72,15 +91,17 @@ def enable() -> int:
     pre.append(_our_entry())
     hooks["PreToolUse"] = pre
     _save(path, data)
-    print(f"VibeGate enabled in {path}")
-    print("Reload/restart Claude Code in this project to activate it.")
+    _print_banner()
+    print(f"{GREEN}{BOLD}●{RESET} VibeGate is now {GREEN}{BOLD}ENABLED{RESET} in {path}")
+    print(f"{GRAY}Reload/restart Claude Code in this project to activate it.{RESET}")
     return 0
 
 
 def disable() -> int:
     path = _settings_path()
+    _print_banner()
     if not path.exists():
-        print(f"VibeGate is not enabled here (no {path}).")
+        print(f"{GRAY}●{RESET} VibeGate is not enabled here (no {path}).")
         return 0
     data = _load(path)
     hooks = data.get("hooks", {})
@@ -92,17 +113,44 @@ def disable() -> int:
     if not hooks:
         data.pop("hooks", None)
     _save(path, data)
-    print(f"VibeGate disabled in {path}")
+    print(f"{RED}{BOLD}●{RESET} VibeGate is now {RED}{BOLD}DISABLED{RESET} in {path}")
     return 0
 
 
-def status() -> int:
+def _format_entry(entry: dict) -> str:
+    marker = (
+        f"{RED}{BOLD}⛔ BLOCKED{RESET}" if entry.get("blocked") else f"{YELLOW}⚠ WARNED {RESET}"
+    )
+    return (
+        f"  {GRAY}{entry.get('timestamp', '?')}{RESET}  {marker}  "
+        f"{entry.get('file', '?')}:{entry.get('line', '?')}  "
+        f"{BOLD}{entry.get('category', '?')}{RESET} ({entry.get('semantic_type', '?')})"
+    )
+
+
+def status(limit: int = DEFAULT_LOG_LIMIT) -> int:
     path = _settings_path()
     data = _load(path)
     enabled = any(
         _is_ours(e) for e in data.get("hooks", {}).get("PreToolUse", [])
     )
-    print(f"VibeGate is {'ENABLED' if enabled else 'NOT enabled'} in {path}")
+    _print_banner()
+    color = GREEN if enabled else GRAY
+    label = "ENABLED" if enabled else "NOT enabled"
+    print(f"{color}{BOLD}●{RESET} VibeGate is {color}{BOLD}{label}{RESET} in {path}")
+
+    entries = activity_log.read_entries()
+    if not entries:
+        print(f"\n{GRAY}No activity recorded yet in this project.{RESET}")
+        return 0
+
+    shown = entries[-limit:]
+    print(
+        f"\n{BOLD}Recent activity{RESET} "
+        f"(last {len(shown)} of {len(entries)} recorded, most recent first):\n"
+    )
+    for entry in reversed(shown):
+        print(_format_entry(entry))
     return 0
 
 
@@ -111,7 +159,7 @@ _USAGE = (
     "  run [--host HOST]  hook entry point (reads a tool event on stdin)\n"
     "  on                 enable in ./.claude/settings.local.json\n"
     "  off                disable in this project\n"
-    "  status             show whether enabled here\n"
+    "  status [N]         show whether enabled + last N activity events (default 10)\n"
 )
 
 
@@ -132,7 +180,14 @@ def main(argv: list[str] | None = None) -> int:
     if cmd in ("off", "disable"):
         return disable()
     if cmd == "status":
-        return status()
+        limit = DEFAULT_LOG_LIMIT
+        if len(args) > 1:
+            try:
+                limit = int(args[1])
+            except ValueError:
+                sys.stderr.write(f"ERROR: expected a number, got {args[1]!r}\n")
+                return 2
+        return status(limit)
 
     sys.stderr.write(_USAGE)
     return 2

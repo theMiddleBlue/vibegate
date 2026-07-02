@@ -220,6 +220,27 @@ Claude Code runs the hook as `vibegate run --host claude_code` — no absolute
 paths involved, so it keeps working even if you reinstall or move things
 around.
 
+`vibegate status` also shows a running log of what VibeGate has actually
+caught in this project — every warning and block, with the file, line, and
+category — so you can see its activity over time instead of just whether
+it's turned on:
+
+```
+$ vibegate status
+
+█   █ █████ ████  █████  ████  ███  █████ █████
+...
+● VibeGate is ENABLED in .claude/settings.local.json
+
+Recent activity (last 2 of 2 recorded, most recent first):
+
+  2026-07-02T17:35:48+00:00  ⛔ BLOCKED  server.py:3  EXEC_INPUT (FREE_TEXT)
+  2026-07-02T17:35:46+00:00  ⚠ WARNED   app.py:2     HTTP_BODY (EMAIL)
+```
+
+This log lives at `.vibegate/activity.jsonl` in the project root — add it to
+your `.gitignore`, it's local developer state, not something to commit.
+
 VibeGate figures out which host it's talking to in this order: an explicit
 `--host <name>` flag, then the `VIBEGATE_HOST` environment variable, then
 auto-detection from the incoming payload, falling back to `claude_code`.
@@ -247,6 +268,9 @@ query = f"SELECT * FROM users WHERE id = {user_id}"  # vibegate-ignore: DB_QUERY
 ```
 src/vibegate/
 ├── hook.py            # entry point
+├── cli.py              # on/off/status commands + the ASCII banner
+├── activity_log.py     # persists warnings/blocks to .vibegate/activity.jsonl
+├── colors.py           # shared ANSI color codes (report + CLI banner)
 ├── core.py            # the host-agnostic pipeline
 ├── models.py          # InputEvent / ClassifiedFinding / AnalysisResult
 ├── semgrep_runner.py  # runs Semgrep as a subprocess (fail-safe)

@@ -21,6 +21,9 @@ htmlcov/
 # Local Claude Code config (per-developer activation, not for distribution)
 .claude/
 
+# VibeGate's own local activity log (per-developer, not for distribution)
+.vibegate/
+
 # OS / editor
 .DS_Store
 *.swp

@@ -6,18 +6,9 @@ when any finding lands in a critical category (EXEC_INPUT / DB_QUERY).
 
 from __future__ import annotations
 
+from .colors import BOLD, CYAN, GRAY, GREEN, ORANGE, RED, RESET, YELLOW
 from .guidance import get_guidance
 from .models import AnalysisResult, ClassifiedFinding
-
-# ANSI colors.
-RESET = "\033[0m"
-BOLD = "\033[1m"
-RED = "\033[91m"
-ORANGE = "\033[33m"
-YELLOW = "\033[93m"
-GREEN = "\033[92m"
-CYAN = "\033[96m"
-GRAY = "\033[90m"
 
 SEVERITY_COLOR = {
     "CRITICAL": RED,

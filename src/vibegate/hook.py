@@ -2,8 +2,8 @@
 """Entry point for the VibeGate security hook.
 
 Thin orchestrator: read stdin -> pick host adapter -> normalize -> analyze ->
-emit. Fail-safe by design: any internal error exits 0 so a hook bug never blocks
-the host tool.
+log -> emit. Fail-safe by design: any internal error exits 0 so a hook bug
+never blocks the host tool.
 
 Usage:
     python3 hook.py [--host claude_code|codex]
@@ -19,9 +19,11 @@ from pathlib import Path
 # Support running both as a script (`python3 hook.py`) and as a package module.
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from vibegate import activity_log
     from vibegate.adapters import get_adapter
     from vibegate.core import analyze
 else:
+    from . import activity_log
     from .adapters import get_adapter
     from .core import analyze
 
@@ -53,6 +55,7 @@ def main() -> int:
         return 0
 
     result = analyze(event)
+    activity_log.record(event, result)
     return adapter.emit(result)
 
 
