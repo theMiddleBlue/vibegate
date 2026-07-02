@@ -30,6 +30,35 @@ assistant tries to write or edit a file, VibeGate scans the new code first:
 No LLM is involved in the analysis itself — it's fast, deterministic static
 analysis, so it never makes things up and never costs you tokens.
 
+Here is everything VibeGate currently checks for:
+
+| Check | What it catches | Result |
+|---|---|---|
+| Command injection | Unsanitized input reaches a shell command | Blocks |
+| SQL injection | Unsanitized input reaches a database query | Blocks |
+| NoSQL injection | The request body is used directly as a database filter | Blocks |
+| Template injection (SSTI) | The template source itself, not just its data, comes from user input | Blocks |
+| Insecure deserialization | Untrusted data reaches an unsafe deserializer (pickle, unsafe YAML, ...) | Blocks |
+| Path traversal | Unsanitized input reaches a file read, write, or delete | Blocks |
+| XXE | Untrusted XML is parsed with external entities enabled | Blocks |
+| XSS | Unsanitized input is rendered as raw HTML | Blocks |
+| Unrestricted file upload | The uploaded file's own name is used to build the save path | Blocks |
+| SSRF | The server fetches a URL that isn't hardcoded | Warns |
+| Open redirect | A redirect target that isn't hardcoded | Warns |
+| Mass assignment | The whole request body is passed into a model constructor or update | Warns |
+| Sensitive data in a request body | Emails, passwords, tokens, etc. read from the request body | Warns |
+| Sensitive data in a URL/query | Emails, passwords, tokens, etc. read from the query string | Warns |
+| Sensitive data in headers | Emails, passwords, tokens, etc. read from request headers | Warns |
+| File path from user input | A variable, not a hardcoded string, is used as a file path | Warns |
+| CLI arguments | Data comes from command-line arguments | Warns |
+| Standard input | Data comes from stdin | Warns |
+| Environment variables | Data comes from an environment variable | Warns |
+| Unpinned GitHub Action | A workflow uses a mutable tag (`@v4`) instead of a commit SHA | Warns |
+| Unsafe `pull_request_target` | A workflow uses the `pull_request_target` trigger | Warns |
+
+The full, current list lives in `guidance.TECHNICAL_RISKS` and
+`formatter.BLOCKING_CATEGORIES`, in case this table ever drifts.
+
 ## What happens when you turn it on
 
 ```
@@ -85,9 +114,8 @@ If VibeGate itself hits an unexpected error, it always lets the write through
 | User input found, but the risk is moderate (e.g. open redirect, mass assignment) | File saves, terminal shows a warning + guidance |
 | User input flows unsanitized into a critical sink (SQL/NoSQL query, shell command, template engine, deserializer, XML parser, file path, uploaded filename, or raw HTML output) | File is **not saved** — Claude Code is told why |
 
-The full, current list of blocking categories lives in
-`formatter.BLOCKING_CATEGORIES` — that's the source of truth if this table
-ever drifts.
+See the table in ["What problem does this solve?"](#what-problem-does-this-solve)
+above for the full, per-check breakdown of what blocks vs. what only warns.
 
 Today VibeGate understands **Python**, **JavaScript/TypeScript**, **Go**,
 **Java**, **PHP**, and **Ruby**, and plugs into **Claude Code** and
