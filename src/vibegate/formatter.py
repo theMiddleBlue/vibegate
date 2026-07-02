@@ -110,12 +110,22 @@ def format_output(
                 f"Snippet: {snip}\n"
                 f"Critical risk: {g['technical_risks'][0]}.\n"
                 f"Required action: {g['sanitization']}\n"
-                f"Fix this before proceeding."
+                f"Fix this before proceeding. Then tell the user, in one sentence, that "
+                f"VibeGate blocked this write ({tech}) and how you fixed it."
             )
 
     lines.append(
         f"{BOLD}{CYAN}  → {len(classified)} pattern(s) detected. "
         f"Review the security guidance above.{RESET}\n"
+    )
+
+    # Explicit instruction so the model surfaces the finding to the user
+    # instead of silently acting on it — this matters most for warnings,
+    # since a non-blocking finding doesn't otherwise interrupt the model's
+    # flow or force it to explain anything.
+    context_parts.append(
+        "ACTION: Before finishing your reply, tell the user in one sentence that "
+        "VibeGate flagged this (name the category above) and what you did about it."
     )
 
     return AnalysisResult(

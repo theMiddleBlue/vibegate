@@ -110,6 +110,11 @@ before it ever reaches disk.
 If VibeGate itself hits an unexpected error, it always lets the write through
 — a bug in the hook should never be the reason your work gets blocked.
 
+Every warning and block also carries an explicit instruction telling Claude
+Code to mention the finding to you in its reply, not just fix it silently.
+That's what makes VibeGate's activity visible in the conversation, not only
+in a terminal log you'd have to go looking for.
+
 | What VibeGate sees | What happens |
 |---|---|
 | No user input, or a language it doesn't support yet | File saves normally, nothing shown |

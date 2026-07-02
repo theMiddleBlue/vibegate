@@ -124,6 +124,20 @@ def test_analyze_exec_fixture_blocks():
     assert result.block_reason
 
 
+def test_block_reason_instructs_model_to_tell_the_user():
+    content = (FIXTURES / "test_exec.py").read_text()
+    result = analyze(InputEvent("Write", "test_exec.py", content))
+    assert "tell the user" in result.block_reason.lower()
+
+
+def test_context_for_host_instructs_model_to_tell_the_user():
+    content = (FIXTURES / "test_http.py").read_text()
+    result = analyze(InputEvent("Write", "test_http.py", content))
+    assert result.has_findings
+    assert not result.should_block
+    assert "tell the user" in result.context_for_host.lower()
+
+
 # --- New vulnerability categories: Python ---
 
 
