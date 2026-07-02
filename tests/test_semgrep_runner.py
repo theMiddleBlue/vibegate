@@ -631,3 +631,97 @@ def test_analyze_pull_request_target_detected_not_blocking():
     result = analyze(InputEvent("Write", "ci.yml", content))
     assert any(f.technical_category == "UNSAFE_PR_TRIGGER" for f in result.classified)
     assert not result.should_block
+
+
+# --- CREDENTIAL logging ---
+
+
+def test_analyze_python_credential_log_detected_not_blocking():
+    content = 'password = "hunter2CorrectHorse"\nprint(password)\n'
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "CREDENTIAL" for f in result.classified)
+    assert not result.should_block
+
+
+def test_analyze_python_credential_log_ignores_unrelated_call():
+    content = "user.set_password(new_password)\n"
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert not any(f.technical_category == "CREDENTIAL" for f in result.classified)
+
+
+def test_analyze_js_credential_log_detected():
+    content = "console.log(apiKey);\n"
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "CREDENTIAL" for f in result.classified)
+
+
+def test_analyze_go_credential_log_detected():
+    content = 'fmt.Println(password)\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "CREDENTIAL" for f in result.classified)
+
+
+def test_analyze_java_credential_log_detected():
+    content = "System.out.println(apiKey);\n"
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "CREDENTIAL" for f in result.classified)
+
+
+def test_analyze_php_credential_log_detected():
+    content = "<?php\nerror_log($apiKey);\n"
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "CREDENTIAL" for f in result.classified)
+
+
+def test_analyze_ruby_credential_log_detected():
+    content = "puts password\n"
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "CREDENTIAL" for f in result.classified)
+
+
+# --- HARDCODED_SECRET ---
+
+
+def test_analyze_python_hardcoded_secret_detected_not_blocking():
+    content = 'API_KEY = "sk-live-abcdef1234567890"\n'
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert any(f.technical_category == "HARDCODED_SECRET" for f in result.classified)
+    assert not result.should_block
+
+
+def test_analyze_python_hardcoded_secret_ignores_placeholder():
+    content = 'password = "changeme"\ntoken = ""\n'
+    result = analyze(InputEvent("Write", "x.py", content))
+    assert not any(
+        f.technical_category == "HARDCODED_SECRET" for f in result.classified
+    )
+
+
+def test_analyze_js_hardcoded_secret_detected():
+    content = 'const apiKey = "sk-live-abcdef1234567890";\n'
+    result = analyze(InputEvent("Write", "x.js", content))
+    assert any(f.technical_category == "HARDCODED_SECRET" for f in result.classified)
+
+
+def test_analyze_go_hardcoded_secret_detected():
+    content = 'password := "SuperSecretPass123"\n'
+    result = analyze(InputEvent("Write", "x.go", content))
+    assert any(f.technical_category == "HARDCODED_SECRET" for f in result.classified)
+
+
+def test_analyze_java_hardcoded_secret_detected():
+    content = 'private static final String API_KEY = "sk-live-1234567890abcdef";\n'
+    result = analyze(InputEvent("Write", "x.java", content))
+    assert any(f.technical_category == "HARDCODED_SECRET" for f in result.classified)
+
+
+def test_analyze_php_hardcoded_secret_detected():
+    content = '<?php\n$apiKey = "sk-live-1234567890abcdef";\n'
+    result = analyze(InputEvent("Write", "x.php", content))
+    assert any(f.technical_category == "HARDCODED_SECRET" for f in result.classified)
+
+
+def test_analyze_ruby_hardcoded_secret_detected():
+    content = 'api_key = "sk-live-1234567890abcdef"\n'
+    result = analyze(InputEvent("Write", "x.rb", content))
+    assert any(f.technical_category == "HARDCODED_SECRET" for f in result.classified)

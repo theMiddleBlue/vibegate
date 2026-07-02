@@ -55,6 +55,8 @@ Here is everything VibeGate currently checks for:
 | Environment variables | Data comes from an environment variable | Warns |
 | Unpinned GitHub Action | A workflow uses a mutable tag (`@v4`) instead of a commit SHA | Warns |
 | Unsafe `pull_request_target` | A workflow uses the `pull_request_target` trigger | Warns |
+| Credential logging | A password, API key, or token is passed to `print`/`console.log`/a logger | Warns |
+| Hardcoded secret | A variable named like a secret is assigned a real-looking literal value | Warns |
 
 The full, current list lives in `guidance.TECHNICAL_RISKS` and
 `formatter.BLOCKING_CATEGORIES`, in case this table ever drifts.

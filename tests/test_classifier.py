@@ -117,3 +117,22 @@ def test_no_marker_behaves_as_before():
     findings = [_finding("rules.python-http-body-flask", 1, "")]
     result = classify_findings(findings, content)
     assert len(result) == 1
+
+
+# --- extract_varname: interpolation + logging-call skip words ---
+
+
+def test_extract_varname_fstring_interpolation():
+    assert extract_varname('logger.info(f"pwd: {password}")') == "password"
+
+
+def test_extract_varname_ruby_interpolation():
+    assert extract_varname('"/uploads/#{filename}"') == "filename"
+
+
+def test_extract_varname_skips_print_call_name():
+    assert extract_varname("print(password)") == "password"
+
+
+def test_extract_varname_skips_logger_and_method_name():
+    assert extract_varname("logger.error(api_key)") == "api_key"

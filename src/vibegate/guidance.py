@@ -82,7 +82,11 @@ TECHNICAL_RISKS = {
         "severity": "CRITICAL",
     },
     "CREDENTIAL": {
-        "risks": ["Credential stuffing", "Brute force", "Log exposure"],
+        "risks": [
+            "Credential exposure in logs / log aggregators",
+            "Downstream credential stuffing if the log leaks",
+            "Compliance violations (PCI-DSS, SOC2 log-handling requirements)",
+        ],
         "severity": "HIGH",
     },
     "TEMPLATE_INJECTION": {
@@ -165,6 +169,14 @@ TECHNICAL_RISKS = {
             "Arbitrary code execution with the base repo's token",
         ],
         "severity": "HIGH",
+    },
+    "HARDCODED_SECRET": {
+        "risks": [
+            "Secret leaked via version control history",
+            "Exposed to anyone with repo or build access",
+            "No rotation path once committed",
+        ],
+        "severity": "CRITICAL",
     },
 }
 

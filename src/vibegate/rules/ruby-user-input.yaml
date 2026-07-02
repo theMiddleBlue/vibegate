@@ -248,3 +248,36 @@ rules:
     message: MASS_ASSIGNMENT
     languages: [ruby]
     severity: WARNING
+
+  # --- CREDENTIAL LOGGING ---
+  - id: ruby-credential-log
+    patterns:
+      - pattern-either:
+          - pattern: puts $X
+          - pattern: p $X
+          - pattern: $LOGGER.info($X)
+          - pattern: $LOGGER.debug($X)
+          - pattern: $LOGGER.warn($X)
+          - pattern: $LOGGER.error($X)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i).*(password|passwd|pwd|secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|private[_-]?key|passphrase|credential).*
+    message: CREDENTIAL
+    languages: [ruby]
+    severity: WARNING
+
+  # --- HARDCODED SECRET ---
+  - id: ruby-hardcoded-secret
+    patterns:
+      - pattern-either:
+          - pattern: $VAR = "$VALUE"
+          - pattern: $VAR = '$VALUE'
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)^(password|passwd|pwd|secret|secret[_-]?key|api[_-]?key|apikey|access[_-]?key|access[_-]?token|auth[_-]?token|api[_-]?token|session[_-]?token|refresh[_-]?token|oauth[_-]?token|private[_-]?key|passphrase|client[_-]?secret)$
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: (?i)^(?!(changeme|placeholder|xxx+|todo|example|secret|password|test|dummy|fake)$)(?!\$\{)(?!<).{8,}$
+    message: HARDCODED_SECRET
+    languages: [ruby]
+    severity: WARNING

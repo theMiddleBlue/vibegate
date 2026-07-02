@@ -134,6 +134,20 @@ RULE_TO_TECHNICAL = {
     # CI/CD config hardening (not tied to a programming language)
     "unpinned-github-action": "UNPINNED_CI_ACTION",
     "github-actions-pull-request-target": "UNSAFE_PR_TRIGGER",
+    # Credential logging
+    "python-credential-log": "CREDENTIAL",
+    "js-credential-log": "CREDENTIAL",
+    "go-credential-log": "CREDENTIAL",
+    "java-credential-log": "CREDENTIAL",
+    "php-credential-log": "CREDENTIAL",
+    "ruby-credential-log": "CREDENTIAL",
+    # Hardcoded secrets
+    "python-hardcoded-secret": "HARDCODED_SECRET",
+    "js-hardcoded-secret": "HARDCODED_SECRET",
+    "go-hardcoded-secret": "HARDCODED_SECRET",
+    "java-hardcoded-secret": "HARDCODED_SECRET",
+    "php-hardcoded-secret": "HARDCODED_SECRET",
+    "ruby-hardcoded-secret": "HARDCODED_SECRET",
 }
 
 # Rules whose finding is intrinsically about a sink consuming a specific kind
@@ -367,6 +381,7 @@ _PRIORITY_PATTERNS = (
         r"""\.(?:FormValue|PostFormValue|getParameter|getHeader|getParameterValues)\(\s*["'](\w+)["']""",
     ),  # Go/Java accessor-style calls: r.FormValue("key"), request.getParameter("key")
     re.compile(r"parse_args\(\)\.(\w+)"),  # argparse namespace
+    re.compile(r"[#$]?\{(\w+)\}"),  # interpolation: f"{x}", "#{x}" (Ruby), `${x}` (JS)
 )
 _ASSIGN_PATTERN = re.compile(
     r"(\w+)\s*=\s*(?:request|req|sys|os|process|input)\b", re.IGNORECASE
@@ -401,6 +416,24 @@ _SKIP_WORDS = {
     "import",
     "from",
     "self",
+    # Logging/print call names, so credential-log findings extract the
+    # logged variable (e.g. "password") instead of the log call itself.
+    "print",
+    "puts",
+    "logger",
+    "logging",
+    "console",
+    "log",
+    "info",
+    "debug",
+    "warn",
+    "warning",
+    "error",
+    "err",
+    "critical",
+    "fmt",
+    "println",
+    "printf",
 }
 
 
