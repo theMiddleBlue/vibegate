@@ -144,8 +144,8 @@ continuing — including a real SSRF risk in the feed-fetching code that it
 fixes on the spot.
 
 <p align="center">
-  <video src="assets/vibegate_action_3.mp4" controls width="720">
-    Your browser doesn't support inline video. <a href="assets/vibegate_action_3.mp4">Download the recording</a> instead.
+  <video src="https://github.com/user-attachments/assets/719ff535-9856-4463-8db2-f268c38e96fd" controls width="720">
+    Your browser doesn't support inline video. <a href="https://github.com/user-attachments/assets/719ff535-9856-4463-8db2-f268c38e96fd">Download the recording</a> instead.
   </video>
 </p>
 
